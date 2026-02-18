@@ -9,13 +9,17 @@ export interface AnalysisResult {
 
 export enum AnalysisStatus {
   IDLE = 'IDLE',
+  EXTRACTING_AUDIO = 'EXTRACTING_AUDIO',
   UPLOADING = 'UPLOADING',
   PROCESSING = 'PROCESSING',
   COMPLETED = 'COMPLETED',
   ERROR = 'ERROR',
 }
 
-export interface VideoFile {
+export interface MediaFile {
   file: File;
   previewUrl: string;
+  isAudioOnly: boolean;
 }
+
+export type DocxTemplateId = 'corporate' | 'modern';
