@@ -22,6 +22,15 @@ import { Button } from './components/Button';
 import { Input } from './components/Input';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 
+declare global {
+  interface Window {
+    aistudio: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
+
 const App: React.FC = () => {
   const [meetingDetails, setMeetingDetails] = useState<MeetingDetails>({
     title: '',
@@ -35,7 +44,36 @@ const App: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<DocxTemplateId>('corporate');
   
+  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
+  const [isCheckingKey, setIsCheckingKey] = useState<boolean>(true);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const checkApiKey = async () => {
+      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
+        try {
+          const selected = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(selected);
+        } catch (e) {
+          console.error("Error checking API key:", e);
+        }
+      }
+      setIsCheckingKey(false);
+    };
+    checkApiKey();
+  }, []);
+
+  const handleOpenKeyDialog = async () => {
+    if (window.aistudio && window.aistudio.openSelectKey) {
+      try {
+        await window.aistudio.openSelectKey();
+        setHasApiKey(true); // Proceed as per baseline instructions
+      } catch (e) {
+        console.error("Error opening key dialog:", e);
+      }
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -145,7 +183,31 @@ const App: React.FC = () => {
       </header>
 
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+        {!hasApiKey && !isCheckingKey ? (
+          <div className="flex flex-col items-center justify-center h-[60vh] bg-slate-900 rounded-3xl border border-slate-800 p-12 text-center shadow-2xl">
+            <div className="w-20 h-20 bg-primary-500/10 rounded-full flex items-center justify-center mb-8 border border-primary-500/20">
+              <Palette className="w-10 h-10 text-primary-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-100 mb-4">Configuration Requise</h2>
+            <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
+              Pour utiliser les modèles avancés de Gemini 3 Pro, vous devez sélectionner une clé API valide associée à un projet Google Cloud avec facturation activée.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button onClick={handleOpenKeyDialog} size="lg" className="px-8">
+                Sélectionner une Clé API
+              </Button>
+              <a 
+                href="https://ai.google.dev/gemini-api/docs/billing" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+              >
+                Documentation Facturation
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 p-6">
               <h2 className="text-lg font-semibold text-slate-100 mb-6 flex items-center">
@@ -352,7 +414,8 @@ const App: React.FC = () => {
             )}
           </div>
         </div>
-      </main>
+      )}
+    </main>
     </div>
   );
 };

@@ -18,7 +18,7 @@ interface TemplateStyle {
     subtitle: string;
   };
   borders: {
-    style: BorderStyle;
+    style: any;
     size: number;
     color?: string; // override if specific
   };
@@ -31,14 +31,14 @@ const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
     name: 'Corporate Grey',
     fonts: { body: "Calibri", heading: "Calibri" },
     colors: {
-      headerBg: "E2E8F0", // Light Grey (Slate-200 equivalent)
-      headerText: "000000", // Black Text
-      rowText: "000000", // Black Text
-      border: "D4D4D4",
-      title: "000000", // Black Text
-      subtitle: "000000" // Black Text (was 404040)
+      headerBg: "F1F5F9", // Slate-100 (Very Light Grey) for better contrast
+      headerText: "000000", // Strictly Black
+      rowText: "000000", // Strictly Black
+      border: "CBD5E1", // Slate-300
+      title: "000000", // Strictly Black
+      subtitle: "000000" // Strictly Black
     },
-    borders: { style: BorderStyle.SINGLE, size: 2 },
+    borders: { style: BorderStyle.SINGLE, size: 4 },
     headerTransform: 'uppercase'
   },
   modern: {
@@ -96,7 +96,7 @@ const renderFormattedText = (text: string, font: string, color: string, size: nu
 };
 
 const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
-  // Safe split to remove transcript if present (backward compatibility), though prompt no longer requests it.
+  // Safe split to remove transcript if present
   const contentOnly = text.split(/##\s*Transcription Résumée/i)[0];
 
   const lines = contentOnly.split('\n');
@@ -113,7 +113,10 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
     let cleanRow = row.trim();
     if (cleanRow.startsWith('|')) cleanRow = cleanRow.substring(1);
     if (cleanRow.endsWith('|')) cleanRow = cleanRow.substring(0, cleanRow.length - 1);
-    return cleanRow.split('|').map(c => c.trim());
+    return cleanRow.split('|').map(c => {
+       // Clean up leading bullets in table cells if present (common Gemini artifact)
+       return c.trim().replace(/^[\*\-]\s+/, '');
+    });
   };
 
   while (i < lines.length) {
@@ -144,7 +147,7 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
             children: [new Paragraph({ 
                 children: renderFormattedText(text, style.fonts.body, style.colors.headerText, 20, true),
                 alignment: AlignmentType.CENTER,
-                spacing: { before: 80, after: 80 }
+                spacing: { before: 100, after: 100 }
             })],
             shading: { fill: style.colors.headerBg, type: ShadingType.SOLID },
             borders: { 
@@ -169,7 +172,7 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
               children: [new Paragraph({ 
                 children: renderFormattedText(cell, style.fonts.body, style.colors.rowText, 22),
                 alignment: AlignmentType.LEFT,
-                spacing: { before: 80, after: 80 }
+                spacing: { before: 100, after: 100 }
               })],
               borders: { 
                 top: tableBorderStyle, 

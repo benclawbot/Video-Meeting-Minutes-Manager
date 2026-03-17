@@ -8,7 +8,7 @@ interface MarkdownRendererProps {
 
 const THEMES = {
   corporate: {
-    page: "bg-white shadow-xl w-full max-w-[21cm] mx-auto p-12 min-h-[29.7cm] font-sans text-black", // Enforced Black
+    page: "bg-white shadow-xl w-full max-w-[21cm] mx-auto p-12 min-h-[29.7cm] font-sans text-black", 
     h1: "text-3xl font-bold text-black mb-8 pb-4 border-b border-slate-300",
     h2: "text-xl font-bold text-black mt-8 mb-4 uppercase tracking-wide border-b border-slate-200 pb-1",
     h3: "text-lg font-semibold text-black mt-6 mb-3",
@@ -20,8 +20,8 @@ const THEMES = {
     table: {
       container: "my-6 rounded-sm overflow-hidden border border-slate-300",
       table: "w-full text-left text-sm border-collapse",
-      thead: "bg-slate-200 text-black", 
-      th: "px-4 py-2 font-semibold border-r border-slate-300 last:border-r-0",
+      thead: "bg-slate-100 text-black", // Light Grey BG
+      th: "px-4 py-2 font-semibold border-r border-slate-300 last:border-r-0 border-b border-slate-300",
       tbody: "bg-white",
       tr: "border-b border-slate-200 last:border-b-0",
       td: "px-4 py-2 border-r border-slate-200 last:border-r-0 align-top text-black"
@@ -65,7 +65,10 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, tem
       let cleanRow = row.trim();
       if (cleanRow.startsWith('|')) cleanRow = cleanRow.substring(1);
       if (cleanRow.endsWith('|')) cleanRow = cleanRow.substring(0, cleanRow.length - 1);
-      return cleanRow.split('|').map(c => c.trim());
+      return cleanRow.split('|').map(c => {
+         // Remove leading bullets in cells for preview consistency
+         return c.trim().replace(/^[\*\-]\s+/, '');
+      });
     };
 
     const renderFormatting = (text: string) => {

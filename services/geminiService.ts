@@ -1,8 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { AnalysisResult } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 const encodeWav8Bit = (samples: Float32Array, sampleRate: number): Blob => {
   const buffer = new ArrayBuffer(44 + samples.length);
   const view = new DataView(buffer);
@@ -102,6 +100,9 @@ export const analyzeMeetingVideo = async (
   date: string,
   onStatusChange?: (status: string) => void
 ): Promise<AnalysisResult> => {
+  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  const ai = new GoogleGenAI({ apiKey: apiKey });
+  
   let audioData: { data: string; mimeType: string } | undefined;
   try {
     if (onStatusChange) onStatusChange('EXTRACTING_AUDIO');
