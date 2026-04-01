@@ -1,5 +1,5 @@
 {
   "name": "MeetingMind",
-  "description": "Intelligent video meeting analysis tool that generates comprehensive minutes and transcripts using Gemini 3 Pro.",
+  "description": "Intelligent video meeting analysis tool that generates comprehensive minutes and transcripts using Minimax M2.7.",
   "requestFramePermissions": []
 }

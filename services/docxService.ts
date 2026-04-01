@@ -114,7 +114,7 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
     if (cleanRow.startsWith('|')) cleanRow = cleanRow.substring(1);
     if (cleanRow.endsWith('|')) cleanRow = cleanRow.substring(0, cleanRow.length - 1);
     return cleanRow.split('|').map(c => {
-       // Clean up leading bullets in table cells if present (common Gemini artifact)
+       // Clean up leading bullets in table cells if present (common LLM artifact)
        return c.trim().replace(/^[\*\-]\s+/, '');
     });
   };

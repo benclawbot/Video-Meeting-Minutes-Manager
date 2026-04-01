@@ -1,34 +1,137 @@
 import { AnalysisResult } from "../types";
-import { pipeline, env } from '@xenova/transformers';
 
-// Configure transformers for browser use
-env.allowLocalModels = false;
-env.useBrowserCache = true;
+const MINIMAX_API_KEY = import.meta.env.VITE_MINIMAX_API_KEY;
+const MINIMAX_GROUP_ID = import.meta.env.VITE_MINIMAX_GROUP_ID;
 
-// Singleton for the transcriber
-let transcriber: any = null;
-let transcriberPromise: Promise<any> | null = null;
+console.log("Minimax Config Check:", {
+  hasKey: !!MINIMAX_API_KEY,
+  hasGroupId: !!MINIMAX_GROUP_ID,
+  groupIdLength: MINIMAX_GROUP_ID?.length
+});
 
-const getTranscriber = async () => {
-  if (transcriber) return transcriber;
-  if (transcriberPromise) return transcriberPromise;
-  
-  transcriberPromise = pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
-    progress_callback: (progress: any) => {
-      if (progress.status === 'initiate') {
-        console.log('Loading Whisper model...');
-      }
-    }
-  }).then(pipe => {
-    transcriber = pipe;
-    return pipe;
+const fileToBlob = (file: File): Promise<Blob> => {
+  return new Promise((resolve) => {
+    resolve(file);
   });
-  
-  return transcriberPromise;
 };
 
-const fileToBlob = (blob: Blob): ArrayBuffer => {
-  return blob;
+const transcribeAudio = async (audioFile: File | Blob, onStatusChange?: (status: string) => void): Promise<string> => {
+  if (!MINIMAX_API_KEY || !MINIMAX_GROUP_ID) {
+    throw new Error("Minimax API Key or Group ID is missing. Please check your configuration.");
+  }
+
+  if (audioFile instanceof File && audioFile.size > 100 * 1024 * 1024) {
+    throw new Error("Le fichier est trop volumineux pour Minimax (max 100Mo). Veuillez le diviser ou le compresser.");
+  }
+
+  if (onStatusChange) onStatusChange('TRANSCRIBING');
+
+  const formData = new FormData();
+  formData.append('file', audioFile, 'audio.wav');
+  formData.append('model', 'speech-01');
+
+  const response = await fetch(`https://api.minimax.chat/v1/audio_transcription?GroupId=${MINIMAX_GROUP_ID}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${MINIMAX_API_KEY}`
+    },
+    body: formData
+  });
+
+  const responseText = await response.text();
+  console.log("Minimax Transcription Raw Response:", responseText);
+  
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch (e) {
+    throw new Error(`Invalid JSON response from Minimax Transcription API. The response was: ${responseText.substring(0, 100)}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Transcription failed: ${data.base_resp?.status_msg || response.statusText}`);
+  }
+
+  if (data.base_resp?.status_code !== 0) {
+    throw new Error(`Transcription error: ${data.base_resp?.status_msg}`);
+  }
+
+  return data.text || "";
+};
+
+const analyzeTextWithMinimax = async (text: string, title: string, date: string, onStatusChange?: (status: string) => void): Promise<string> => {
+  if (!MINIMAX_API_KEY || !MINIMAX_GROUP_ID) {
+    throw new Error("Minimax API Key or Group ID is missing. Please check your configuration.");
+  }
+
+  if (onStatusChange) onStatusChange('PROCESSING');
+
+  const prompt = `
+    Tu es un assistant de direction expert. Analyse cette réunion "${title}" du ${date}.
+    Voici la transcription de la réunion :
+    
+    ${text}
+    
+    Génère un compte rendu professionnel rigoureux en FRANÇAIS.
+    
+    IMPORTANT : Ne fournis QUE le contenu du compte rendu. N'affiche PAS ton processus de réflexion ("thought") et ne commence PAS par un texte introductif. Débute DIRECTEMENT par le titre.
+
+    CONSIGNES DE FORMATAGE STRICTES (Markdown) :
+    1. # Compte Rendu : ${title}
+    2. ## Synthèse : Résumé exécutif de la réunion.
+    3. ## Points Clés : Détails organisés par thèmes. Utilise des listes à puces.
+    4. ## Décisions : Liste claire des points validés.
+    5. ## Actions à Entreprendre : DOIT être un TABLEAU Markdown.
+       | Action | Responsable | Échéance |
+       | :--- | :--- | :--- |
+       | ... | ... | ... |
+
+    IMPORTANT: Réponds directement avec le texte au format Markdown. N'utilise PAS de JSON.
+  `;
+
+  const response = await fetch(`https://api.minimax.chat/v1/text/chatcompletion_v2?GroupId=${MINIMAX_GROUP_ID}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${MINIMAX_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'minimax-text-01',
+      messages: [
+        { role: 'system', content: 'Tu es un assistant de direction expert.' },
+        { role: 'user', content: prompt }
+      ],
+      stream: false
+    })
+  });
+
+  const responseText = await response.text();
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch (e) {
+    console.error("Failed to parse Minimax analysis response:", responseText);
+    throw new Error(`Invalid JSON response from Minimax Analysis API: ${responseText.substring(0, 100)}...`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Analysis failed: ${data.base_resp?.status_msg || response.statusText}`);
+  }
+
+  if (data.base_resp?.status_code !== 0) {
+    throw new Error(`Analysis error: ${data.base_resp?.status_msg}`);
+  }
+
+  let resultText = data.choices?.[0]?.message?.content || "";
+  
+  // Cleanup
+  resultText = resultText.replace(/^```markdown\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '');
+  const titleIndex = resultText.indexOf('# Compte Rendu');
+  if (titleIndex !== -1) {
+    resultText = resultText.substring(titleIndex);
+  }
+
+  return resultText;
 };
 
 export const analyzeMeetingVideo = async (
@@ -37,104 +140,24 @@ export const analyzeMeetingVideo = async (
   date: string,
   onStatusChange?: (status: string) => void
 ): Promise<AnalysisResult> => {
-  const apiKey = import.meta.env.VITE_MINIMAX_API_KEY || import.meta.env.MINIMAX_API_KEY;
-  
-  if (!apiKey) {
-    throw new Error("MINIMAX_API_KEY not configured. Please set VITE_MINIMAX_API_KEY in your .env.local file.");
-  }
-
   try {
-    if (onStatusChange) onStatusChange('LOADING_MODEL');
+    // Step 1: Transcribe audio
+    const transcript = await transcribeAudio(mediaFile, onStatusChange);
     
-    // Load Whisper model (cached in browser after first use)
-    const transcriber = await getTranscriber();
-    
-    if (onStatusChange) onStatusChange('TRANSCRIBING');
-    
-    // Transcribe audio using Whisper (runs locally in browser)
-    const arrayBuffer = await mediaFile.arrayBuffer();
-    
-    const result = await transcriber(arrayBuffer, {
-      language: 'french',
-      task: 'transcribe',
-      chunk_length_s: 30,
-      stride_length_s: 5,
-    });
-    
-    const transcription = result.text || "";
-    
-    if (!transcription.trim()) {
-      throw new Error("Aucun texte transcrit. L'audio semble vide ou non reconnaissable.");
-    }
-    
-    if (onStatusChange) onStatusChange('PROCESSING');
-
-    // Generate meeting minutes from transcription using MiniMax Chat API
-    const prompt = `
-Tu es un assistant de direction expert. Analyse cette transcription de réunion "${title}" du ${date}.
-Génère un compte rendu professionnel rigoureux en FRANÇAIS basé sur la transcription ci-dessous.
-
-TRANSCRIPTION:
-${transcription}
-
-IMPORTANT : Ne fournis QUE le contenu du compte rendu. N'affiche PAS ton processus de réflexion ("thought") et ne commence PAS par un texte introductif. Débute DIRECTEMENT par le titre.
-
-CONSIGNES DE FORMATAGE STRICTES (Markdown) :
-1. # Compte Rendu : ${title}
-2. ## Synthèse : Résumé exécutif de la réunion.
-3. ## Points Clés : Détails organisés par thèmes. Utilise des listes à puces.
-4. ## Décisions : Liste claire des points validés.
-5. ## Actions à Entreprendre : DOIT être un TABLEAU Markdown.
-   | Action | Responsable | Échéance |
-   | :--- | :--- | :--- |
-   | ... | ... | ... |
-
-IMPORTANT: Réponds directement avec le texte au format Markdown. N'utilise PAS de JSON.
-`;
-
-    const chatResponse = await fetch('https://api.minimax.io/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'MiniMax-M2.7',
-        messages: [
-          { role: 'user', content: prompt }
-        ],
-        max_tokens: 32000,
-        temperature: 0.7,
-      }),
-    });
-
-    if (!chatResponse.ok) {
-      const errorData = await chatResponse.text();
-      throw new Error(`MiniMax API error: ${chatResponse.status} - ${errorData}`);
+    if (!transcript) {
+      throw new Error("La transcription n'a produit aucun texte.");
     }
 
-    const chatResult = await chatResponse.json();
-    let text = chatResult.choices?.[0]?.message?.content || "";
+    // Step 2: Analyze transcript
+    const minutes = await analyzeTextWithMinimax(transcript, title, date, onStatusChange);
 
-    // Cleanup: remove markdown code blocks if present
-    text = text.replace(/^```markdown\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '');
-
-    // Cleanup: Remove thinking process and find the actual content
-    const titleIndex = text.indexOf('# Compte Rendu');
-    if (titleIndex !== -1) {
-      text = text.substring(titleIndex);
-    } else {
-      const firstH1 = text.indexOf('# ');
-      if (firstH1 !== -1) {
-        text = text.substring(firstH1);
-      }
+    if (!minutes) {
+      throw new Error("L'analyse n'a produit aucun contenu.");
     }
 
-    if (!text) throw new Error("Aucun contenu généré.");
-
-    return { minutes: text };
+    return { minutes };
   } catch (error: any) {
-    console.error("Error:", error);
-    throw new Error(error.message || "Erreur lors de l'analyse.");
+    console.error("Minimax Error:", error);
+    throw new Error(error.message || "Erreur lors de l'analyse avec Minimax.");
   }
 };

@@ -44,36 +44,7 @@ const App: React.FC = () => {
   const [isExporting, setIsExporting] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<DocxTemplateId>('corporate');
   
-  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
-  const [isCheckingKey, setIsCheckingKey] = useState<boolean>(true);
-  
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    const checkApiKey = async () => {
-      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-        try {
-          const selected = await window.aistudio.hasSelectedApiKey();
-          setHasApiKey(selected);
-        } catch (e) {
-          console.error("Error checking API key:", e);
-        }
-      }
-      setIsCheckingKey(false);
-    };
-    checkApiKey();
-  }, []);
-
-  const handleOpenKeyDialog = async () => {
-    if (window.aistudio && window.aistudio.openSelectKey) {
-      try {
-        await window.aistudio.openSelectKey();
-        setHasApiKey(true); // Proceed as per baseline instructions
-      } catch (e) {
-        console.error("Error opening key dialog:", e);
-      }
-    }
-  };
 
   useEffect(() => {
     return () => {
@@ -99,8 +70,8 @@ const App: React.FC = () => {
         return;
       }
       
-      if (file.size > 200 * 1024 * 1024) {
-        setError("Le fichier dépasse la limite de 200Mo.");
+      if (file.size > 100 * 1024 * 1024) {
+        setError("Le fichier dépasse la limite de 100Mo pour Minimax.");
         return;
       }
       
@@ -154,10 +125,9 @@ const App: React.FC = () => {
 
   const getStatusMessage = () => {
     switch(status) {
-      case AnalysisStatus.LOADING_MODEL: return "Chargement du modèle Whisper...";
       case AnalysisStatus.EXTRACTING_AUDIO: return "Extraction de l'audio...";
-      case AnalysisStatus.TRANSCRIBING: return "Transcription audio (Whisper)...";
-      case AnalysisStatus.UPLOADING: return "Transmission à l'IA...";
+      case AnalysisStatus.UPLOADING: return "Transmission à Minimax...";
+      case AnalysisStatus.TRANSCRIBING: return "Transcription de l'audio...";
       case AnalysisStatus.PROCESSING: return "Analyse du contenu...";
       default: return "Traitement en cours...";
     }
@@ -179,37 +149,13 @@ const App: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-100 tracking-tight">MeetingMind</h1>
           </div>
           <div className="text-sm text-slate-400 hidden sm:block">
-            Vidéo & Audio (M4A) • MiniMax M2
+            Vidéo & Audio (M4A) • Minimax M2.7
           </div>
         </div>
       </header>
 
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {!hasApiKey && !isCheckingKey ? (
-          <div className="flex flex-col items-center justify-center h-[60vh] bg-slate-900 rounded-3xl border border-slate-800 p-12 text-center shadow-2xl">
-            <div className="w-20 h-20 bg-primary-500/10 rounded-full flex items-center justify-center mb-8 border border-primary-500/20">
-              <Palette className="w-10 h-10 text-primary-400" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-100 mb-4">Configuration Requise</h2>
-            <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
-              Whisper (local, gratuit) transcrit l'audio, puis MiniMax génère le compte rendu.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button onClick={handleOpenKeyDialog} size="lg" className="px-8">
-                Sélectionner une Clé API
-              </Button>
-              <a 
-                href="https://ai.google.dev/gemini-api/docs/billing" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-slate-300 hover:text-white transition-colors"
-              >
-                Documentation Facturation
-              </a>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 p-6">
               <h2 className="text-lg font-semibold text-slate-100 mb-6 flex items-center">
@@ -256,7 +202,7 @@ const App: React.FC = () => {
                         <UploadCloud className="w-6 h-6 text-primary-400" />
                       </div>
                       <p className="text-sm font-medium text-slate-300">Ajouter un fichier</p>
-                      <p className="text-xs text-slate-500 mt-1">Vidéo ou Audio (Max 200 Mo)</p>
+                      <p className="text-xs text-slate-500 mt-1">Vidéo ou Audio (Max 100 Mo)</p>
                     </div>
                   ) : (
                     <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-black shadow-lg">
@@ -408,7 +354,7 @@ const App: React.FC = () => {
                     </div>
                     <h3 className="text-xl font-semibold text-slate-100 mb-2">Prêt pour l'analyse</h3>
                     <p className="text-slate-400 max-w-md mx-auto">
-                      Téléchargez un enregistrement vidéo ou audio (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via Whisper + MiniMax.
+                      Téléchargez un enregistrement vidéo ou audio Zoom (jusqu'à 100 Mo) pour générer un compte rendu structuré en français via Minimax.
                     </p>
                   </>
                 )}
@@ -416,8 +362,7 @@ const App: React.FC = () => {
             )}
           </div>
         </div>
-      )}
-    </main>
+      </main>
     </div>
   );
 };
