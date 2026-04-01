@@ -52,9 +52,9 @@ const fileToBase64 = (blob: Blob): Promise<string> => {
 };
 
 const extractAndOptimizeAudio = async (mediaFile: File): Promise<{ data: string; mimeType: string }> => {
-  const MAX_INLINE_SIZE = 13 * 1024 * 1024;
+  const MAX_SIZE = 10 * 1024 * 1024; // 10MB max for STT API
 
-  if (mediaFile.type.startsWith('audio/') && mediaFile.size < MAX_INLINE_SIZE) {
+  if (mediaFile.type.startsWith('audio/') && mediaFile.size < MAX_SIZE) {
     try {
       const base64 = await fileToBase64(mediaFile);
       return { data: base64, mimeType: mediaFile.type };
@@ -68,11 +68,12 @@ const extractAndOptimizeAudio = async (mediaFile: File): Promise<{ data: string;
   const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
   const durationInSecs = audioBuffer.duration;
 
-  const targetBinarySize = 12 * 1024 * 1024;
-  let targetRate = Math.floor(targetBinarySize / durationInSecs);
-
-  if (targetRate < 3000) targetRate = 3000;
-  if (targetRate > 16000) targetRate = 16000;
+  // Target 16kHz for STT (optimal for MiniMax STT)
+  let targetRate = 16000;
+  if (audioBuffer.duration > 300) {
+    // For files > 5 min, downsample more aggressively to reduce size
+    targetRate = 8000;
+  }
 
   const resampled = await resampleAudio(audioBuffer, targetRate);
   const channelData = resampled.getChannelData(0);
@@ -95,22 +96,91 @@ export const analyzeMeetingVideo = async (
   }
 
   let audioData: { data: string; mimeType: string } | undefined;
+
   try {
     if (onStatusChange) onStatusChange('EXTRACTING_AUDIO');
     audioData = await extractAndOptimizeAudio(mediaFile);
 
-    if (onStatusChange) onStatusChange('UPLOADING');
+    if (onStatusChange) onStatusChange('TRANSCRIBING');
+
+    // Step 1: Transcribe audio using MiniMax STT API
+    const sttResponse = await fetch('https://api.minimax.io/v1/stt/create', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: "speech-01-mini",
+        audio_file: audioData.data,
+        audio_file_name: mediaFile.name || "meeting_audio.wav",
+      }),
+    });
+
+    if (!sttResponse.ok) {
+      const errorData = await sttResponse.text();
+      throw new Error(`STT API error: ${sttResponse.status} - ${errorData}`);
+    }
+
+    const sttResult = await sttResponse.json();
     
+    if (sttResult.base_resp?.status_code !== 0) {
+      throw new Error(`STT failed: ${sttResult.base_resp?.status_msg || 'Unknown error'}`);
+    }
+
+    const transcriptionJobId = sttResult.job_id;
+    
+    if (onStatusChange) onStatusChange('PROCESSING');
+
+    // Poll for transcription completion
+    let transcription = "";
+    let retries = 0;
+    const maxRetries = 60; // 60 seconds timeout
+
+    while (retries < maxRetries) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const pollResponse = await fetch(`https://api.minimax.io/v1/stt/get?job_id=${transcriptionJobId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!pollResponse.ok) {
+        throw new Error(`STT poll error: ${pollResponse.status}`);
+      }
+
+      const pollResult = await pollResponse.json();
+      
+      if (pollResult.status === "completed") {
+        transcription = pollResult.data?.text || "";
+        break;
+      } else if (pollResult.status === "failed") {
+        throw new Error("Transcription job failed");
+      }
+      
+      retries++;
+    }
+
+    if (!transcription) {
+      throw new Error("Transcription timeout - no text received");
+    }
+
+    // Step 2: Generate meeting minutes from transcription using chat API
     const prompt = `
-Tu es un assistant de direction expert. Analyse cette réunion "${title}" du ${date}.
-Génère un compte rendu professionnel rigoureux en FRANÇAIS.
+Tu es un assistant de direction expert. Analyse cette transcription de réunion "${title}" du ${date}.
+Génère un compte rendu professionnel rigoureux en FRANÇAIS basé sur la transcription ci-dessous.
+
+TRANSCRIPTION:
+${transcription}
 
 IMPORTANT : Ne fournis QUE le contenu du compte rendu. N'affiche PAS ton processus de réflexion ("thought") et ne commence PAS par un texte introductif. Débute DIRECTEMENT par le titre.
 
 CONSIGNES DE FORMATAGE STRICTES (Markdown) :
 1. # Compte Rendu : ${title}
 2. ## Synthèse : Résumé exécutif de la réunion.
-3. ## Points Clés : Détails organisés par thèmes. Utilise des listes à puces.
+3. ## Points Clés : Détails organizados par thèmes. Utilise des listes à puces.
 4. ## Décisions : Liste claire des points validés.
 5. ## Actions à Entreprendre : DOIT être un TABLEAU Markdown.
    | Action | Responsable | Échéance |
@@ -120,10 +190,7 @@ CONSIGNES DE FORMATAGE STRICTES (Markdown) :
 IMPORTANT: Réponds directement avec le texte au format Markdown. N'utilise PAS de JSON.
 `;
 
-    if (onStatusChange) onStatusChange('PROCESSING');
-
-    // Using MiniMax OpenAI-compatible API
-    const response = await fetch('https://api.minimax.io/v1/chat/completions', {
+    const chatResponse = await fetch('https://api.minimax.io/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -139,13 +206,13 @@ IMPORTANT: Réponds directement avec le texte au format Markdown. N'utilise PAS 
       }),
     });
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      throw new Error(`MiniMax API error: ${response.status} - ${errorData}`);
+    if (!chatResponse.ok) {
+      const errorData = await chatResponse.text();
+      throw new Error(`Chat API error: ${chatResponse.status} - ${errorData}`);
     }
 
-    const data = await response.json();
-    let text = data.choices?.[0]?.message?.content || "";
+    const chatResult = await chatResponse.json();
+    let text = chatResult.choices?.[0]?.message?.content || "";
 
     // Cleanup: remove markdown code blocks if present
     text = text.replace(/^```markdown\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '');
@@ -166,9 +233,6 @@ IMPORTANT: Réponds directement avec le texte au format Markdown. N'utilise PAS 
     return { minutes: text };
   } catch (error: any) {
     console.error("MiniMax Error:", error);
-    if (error.message?.includes('413') || (audioData && audioData.data.length > 21 * 1024 * 1024)) {
-      throw new Error("Réunion trop longue. Veuillez diviser le fichier.");
-    }
     throw new Error(error.message || "Erreur lors de l'analyse.");
   }
 };
