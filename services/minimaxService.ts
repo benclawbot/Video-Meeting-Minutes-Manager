@@ -1,4 +1,3 @@
-import { GoogleGenAI } from "@google/genai";
 import { AnalysisResult } from "../types";
 
 const encodeWav8Bit = (samples: Float32Array, sampleRate: number): Blob => {
@@ -14,12 +13,12 @@ const encodeWav8Bit = (samples: Float32Array, sampleRate: number): Blob => {
   writeString(8, 'WAVE');
   writeString(12, 'fmt ');
   view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true); 
-  view.setUint16(22, 1, true); 
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
   view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate, true); 
-  view.setUint16(32, 1, true); 
-  view.setUint16(34, 8, true); 
+  view.setUint32(28, sampleRate, true);
+  view.setUint16(32, 1, true);
+  view.setUint16(34, 8, true);
   writeString(36, 'data');
   view.setUint32(40, samples.length, true);
   for (let i = 0; i < samples.length; i++) {
@@ -53,12 +52,8 @@ const fileToBase64 = (blob: Blob): Promise<string> => {
 };
 
 const extractAndOptimizeAudio = async (mediaFile: File): Promise<{ data: string; mimeType: string }> => {
-  // Optimization: If the original file is audio and small enough (< 13MB), send it directly.
-  // 13MB binary ~= 17.3MB Base64. Safe for 20MB request limit including prompt.
-  // Supported formats by Gemini: WAV, MP3, AAC, FLAC, OGG.
-  // We assume browser-supported audio types are generally compatible or will fail gracefully.
   const MAX_INLINE_SIZE = 13 * 1024 * 1024;
-  
+
   if (mediaFile.type.startsWith('audio/') && mediaFile.size < MAX_INLINE_SIZE) {
     try {
       const base64 = await fileToBase64(mediaFile);
@@ -72,24 +67,17 @@ const extractAndOptimizeAudio = async (mediaFile: File): Promise<{ data: string;
   const arrayBuffer = await mediaFile.arrayBuffer();
   const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
   const durationInSecs = audioBuffer.duration;
-  
-  // Dynamic compression logic
-  // Target: ~12MB binary data to stay safe (lowered from 13 to be safer with base64 overhead)
+
   const targetBinarySize = 12 * 1024 * 1024;
-  
-  // Calculate max possible rate: Bytes / Seconds
   let targetRate = Math.floor(targetBinarySize / durationInSecs);
-  
-  // Clamp sample rate.
-  // The Web Audio API spec and Chrome implementation require a minimum of 3000Hz for OfflineAudioContext.
-  // Attempting to use a lower value (e.g. 2585) causes a constructor error.
+
   if (targetRate < 3000) targetRate = 3000;
-  if (targetRate > 16000) targetRate = 16000; 
+  if (targetRate > 16000) targetRate = 16000;
 
   const resampled = await resampleAudio(audioBuffer, targetRate);
   const channelData = resampled.getChannelData(0);
   const wavBlob = encodeWav8Bit(channelData, targetRate);
-  
+
   const base64 = await fileToBase64(wavBlob);
   return { data: base64, mimeType: 'audio/wav' };
 };
@@ -100,63 +88,76 @@ export const analyzeMeetingVideo = async (
   date: string,
   onStatusChange?: (status: string) => void
 ): Promise<AnalysisResult> => {
-  const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-  const ai = new GoogleGenAI({ apiKey: apiKey });
+  const apiKey = import.meta.env.VITE_MINIMAX_API_KEY || import.meta.env.MINIMAX_API_KEY;
   
+  if (!apiKey) {
+    throw new Error("MINIMAX_API_KEY not configured. Please set VITE_MINIMAX_API_KEY in your .env.local file.");
+  }
+
   let audioData: { data: string; mimeType: string } | undefined;
   try {
     if (onStatusChange) onStatusChange('EXTRACTING_AUDIO');
     audioData = await extractAndOptimizeAudio(mediaFile);
 
     if (onStatusChange) onStatusChange('UPLOADING');
+    
     const prompt = `
-      Tu es un assistant de direction expert. Analyse cette réunion "${title}" du ${date}.
-      Génère un compte rendu professionnel rigoureux en FRANÇAIS.
-      
-      IMPORTANT : Ne fournis QUE le contenu du compte rendu. N'affiche PAS ton processus de réflexion ("thought") et ne commence PAS par un texte introductif. Débute DIRECTEMENT par le titre.
+Tu es un assistant de direction expert. Analyse cette réunion "${title}" du ${date}.
+Génère un compte rendu professionnel rigoureux en FRANÇAIS.
 
-      CONSIGNES DE FORMATAGE STRICTES (Markdown) :
-      1. # Compte Rendu : ${title}
-      2. ## Synthèse : Résumé exécutif de la réunion.
-      3. ## Points Clés : Détails organisés par thèmes. Utilise des listes à puces.
-      4. ## Décisions : Liste claire des points validés.
-      5. ## Actions à Entreprendre : DOIT être un TABLEAU Markdown.
-         | Action | Responsable | Échéance |
-         | :--- | :--- | :--- |
-         | ... | ... | ... |
+IMPORTANT : Ne fournis QUE le contenu du compte rendu. N'affiche PAS ton processus de réflexion ("thought") et ne commence PAS par un texte introductif. Débute DIRECTEMENT par le titre.
 
-      IMPORTANT: Réponds directement avec le texte au format Markdown. N'utilise PAS de JSON.
-    `;
+CONSIGNES DE FORMATAGE STRICTES (Markdown) :
+1. # Compte Rendu : ${title}
+2. ## Synthèse : Résumé exécutif de la réunion.
+3. ## Points Clés : Détails organisés par thèmes. Utilise des listes à puces.
+4. ## Décisions : Liste claire des points validés.
+5. ## Actions à Entreprendre : DOIT être un TABLEAU Markdown.
+   | Action | Responsable | Échéance |
+   | :--- | :--- | :--- |
+   | ... | ... | ... |
+
+IMPORTANT: Réponds directement avec le texte au format Markdown. N'utilise PAS de JSON.
+`;
 
     if (onStatusChange) onStatusChange('PROCESSING');
 
-    // Using gemini-3-pro-preview for best quality
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview', 
-      contents: {
-        parts: [
-          { inlineData: { data: audioData.data, mimeType: audioData.mimeType } },
-          { text: prompt }
-        ]
+    // Using MiniMax OpenAI-compatible API
+    const response = await fetch('https://api.minimax.io/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
       },
+      body: JSON.stringify({
+        model: 'MiniMax-M2.7-32K',
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+        max_tokens: 32000,
+        temperature: 0.7,
+      }),
     });
 
-    let text = response.text || "";
-    
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`MiniMax API error: ${response.status} - ${errorData}`);
+    }
+
+    const data = await response.json();
+    let text = data.choices?.[0]?.message?.content || "";
+
     // Cleanup: remove markdown code blocks if present
     text = text.replace(/^```markdown\s*/i, '').replace(/^```\s*/i, '').replace(/```$/i, '');
 
-    // Cleanup: Remove thinking process. 
-    // Strip everything before the expected Markdown Title
-    // This removes "thought\n..." or any preamble
+    // Cleanup: Remove thinking process and find the actual content
     const titleIndex = text.indexOf('# Compte Rendu');
     if (titleIndex !== -1) {
       text = text.substring(titleIndex);
     } else {
-      // Fallback: try to find the first H1 if the exact title isn't found
       const firstH1 = text.indexOf('# ');
       if (firstH1 !== -1) {
-         text = text.substring(firstH1);
+        text = text.substring(firstH1);
       }
     }
 
@@ -164,8 +165,7 @@ export const analyzeMeetingVideo = async (
 
     return { minutes: text };
   } catch (error: any) {
-    console.error("Gemini Error:", error);
-    // Relaxed size check to 21MB (Base64) to allow for minor overflows if the API accepts it
+    console.error("MiniMax Error:", error);
     if (error.message?.includes('413') || (audioData && audioData.data.length > 21 * 1024 * 1024)) {
       throw new Error("Réunion trop longue. Veuillez diviser le fichier.");
     }

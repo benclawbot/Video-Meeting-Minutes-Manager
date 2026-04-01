@@ -16,7 +16,7 @@ import {
   Palette
 } from 'lucide-react';
 import { MeetingDetails, AnalysisStatus, AnalysisResult, MediaFile, DocxTemplateId } from './types';
-import { analyzeMeetingVideo } from './services/geminiService';
+import { analyzeMeetingVideo } from './services/minimaxService';
 import { generateAndDownloadDocx } from './services/docxService';
 import { Button } from './components/Button';
 import { Input } from './components/Input';
@@ -177,7 +177,7 @@ const App: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-100 tracking-tight">MeetingMind</h1>
           </div>
           <div className="text-sm text-slate-400 hidden sm:block">
-            Vidéo & Audio (M4A) • Gemini 3 Pro
+            Vidéo & Audio (M4A) • MiniMax M2
           </div>
         </div>
       </header>
@@ -190,7 +190,7 @@ const App: React.FC = () => {
             </div>
             <h2 className="text-2xl font-bold text-slate-100 mb-4">Configuration Requise</h2>
             <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
-              Pour utiliser les modèles avancés de Gemini 3 Pro, vous devez sélectionner une clé API valide associée à un projet Google Cloud avec facturation activée.
+              Pour utiliser MiniMax M2, vous devez configurer votre clé API MiniMax dans le fichier .env.local.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button onClick={handleOpenKeyDialog} size="lg" className="px-8">
@@ -406,7 +406,7 @@ const App: React.FC = () => {
                     </div>
                     <h3 className="text-xl font-semibold text-slate-100 mb-2">Prêt pour l'analyse</h3>
                     <p className="text-slate-400 max-w-md mx-auto">
-                      Téléchargez un enregistrement vidéo ou audio Zoom (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via Gemini.
+                      Téléchargez un enregistrement vidéo ou audio Zoom (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via MiniMax.
                     </p>
                   </>
                 )}
