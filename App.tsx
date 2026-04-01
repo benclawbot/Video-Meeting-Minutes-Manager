@@ -154,7 +154,9 @@ const App: React.FC = () => {
 
   const getStatusMessage = () => {
     switch(status) {
+      case AnalysisStatus.LOADING_MODEL: return "Chargement du modèle Whisper...";
       case AnalysisStatus.EXTRACTING_AUDIO: return "Extraction de l'audio...";
+      case AnalysisStatus.TRANSCRIBING: return "Transcription audio (Whisper)...";
       case AnalysisStatus.UPLOADING: return "Transmission à l'IA...";
       case AnalysisStatus.PROCESSING: return "Analyse du contenu...";
       default: return "Traitement en cours...";
@@ -190,7 +192,7 @@ const App: React.FC = () => {
             </div>
             <h2 className="text-2xl font-bold text-slate-100 mb-4">Configuration Requise</h2>
             <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
-              Pour utiliser MiniMax M2, vous devez configurer votre clé API MiniMax dans le fichier .env.local.
+              Whisper (local, gratuit) transcrit l'audio, puis MiniMax génère le compte rendu.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button onClick={handleOpenKeyDialog} size="lg" className="px-8">
@@ -406,7 +408,7 @@ const App: React.FC = () => {
                     </div>
                     <h3 className="text-xl font-semibold text-slate-100 mb-2">Prêt pour l'analyse</h3>
                     <p className="text-slate-400 max-w-md mx-auto">
-                      Téléchargez un enregistrement vidéo ou audio Zoom (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via MiniMax.
+                      Téléchargez un enregistrement vidéo ou audio (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via Whisper + MiniMax.
                     </p>
                   </>
                 )}
