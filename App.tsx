@@ -12,11 +12,10 @@ import {
   Download,
   Loader2,
   Music,
-  Layout,
   Palette
 } from 'lucide-react';
 import { MeetingDetails, AnalysisStatus, AnalysisResult, MediaFile, DocxTemplateId } from './types';
-import { analyzeMeetingVideo } from './services/minimaxService';
+import { analyzeMeetingVideo } from './services/geminiService';
 import { generateAndDownloadDocx } from './services/docxService';
 import { Button } from './components/Button';
 import { Input } from './components/Input';
@@ -70,8 +69,8 @@ const App: React.FC = () => {
         return;
       }
       
-      if (file.size > 100 * 1024 * 1024) {
-        setError("Le fichier dépasse la limite de 100Mo pour Minimax.");
+      if (file.size > 200 * 1024 * 1024) {
+        setError("Le fichier dépasse la limite de 200Mo.");
         return;
       }
       
@@ -126,7 +125,7 @@ const App: React.FC = () => {
   const getStatusMessage = () => {
     switch(status) {
       case AnalysisStatus.EXTRACTING_AUDIO: return "Extraction de l'audio...";
-      case AnalysisStatus.UPLOADING: return "Transmission à Minimax...";
+      case AnalysisStatus.UPLOADING: return "Transmission à l'IA...";
       case AnalysisStatus.TRANSCRIBING: return "Transcription de l'audio...";
       case AnalysisStatus.PROCESSING: return "Analyse du contenu...";
       default: return "Traitement en cours...";
@@ -149,7 +148,7 @@ const App: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-100 tracking-tight">MeetingMind</h1>
           </div>
           <div className="text-sm text-slate-400 hidden sm:block">
-            Vidéo & Audio (M4A) • Minimax M2.7
+            Vidéo & Audio (M4A) • Deepgram nova-2 + MiniMax M2.7
           </div>
         </div>
       </header>
@@ -202,7 +201,7 @@ const App: React.FC = () => {
                         <UploadCloud className="w-6 h-6 text-primary-400" />
                       </div>
                       <p className="text-sm font-medium text-slate-300">Ajouter un fichier</p>
-                      <p className="text-xs text-slate-500 mt-1">Vidéo ou Audio (Max 100 Mo)</p>
+                      <p className="text-xs text-slate-500 mt-1">Vidéo ou Audio (Max 200 Mo)</p>
                     </div>
                   ) : (
                     <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-black shadow-lg">
@@ -354,7 +353,7 @@ const App: React.FC = () => {
                     </div>
                     <h3 className="text-xl font-semibold text-slate-100 mb-2">Prêt pour l'analyse</h3>
                     <p className="text-slate-400 max-w-md mx-auto">
-                      Téléchargez un enregistrement vidéo ou audio Zoom (jusqu'à 100 Mo) pour générer un compte rendu structuré en français via Minimax.
+                      Téléchargez un enregistrement vidéo ou audio (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via MiniMax M2.7.
                     </p>
                   </>
                 )}
