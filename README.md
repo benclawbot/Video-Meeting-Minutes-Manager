@@ -1,20 +1,62 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# Video Meeting Minutes Manager
 
-# Run and deploy your AI Studio app
+Video Meeting Minutes Manager is a browser-based meeting summarization tool that turns a recorded meeting into a structured French meeting report and exports it as a styled DOCX document.
 
-This contains everything you need to run your app locally.
+It accepts video or audio uploads, transcribes the content, generates minutes, and lets you download the result using selectable document templates.
 
-View your app in AI Studio: https://ai.studio/apps/ace008dc-9605-4d47-8db0-abac4b96a86a
+## What it does
 
-## Run Locally
+- Uploads a meeting recording as video or audio (`M4A` supported)
+- Extracts and resamples audio in the browser
+- Transcribes the recording with Deepgram `nova-2`
+- Generates a French executive-style meeting report through MiniMax M2.7
+- Produces a Markdown preview inside the app
+- Exports the final report to DOCX with multiple document styles
 
-**Prerequisites:**  Node.js
+## Processing Pipeline
 
+1. Extract audio from the uploaded media file
+2. Resample and chunk long recordings
+3. Transcribe each chunk with Deepgram
+4. Merge the transcript
+5. Generate structured minutes in French
+6. Export the result as DOCX
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Quick Start
+
+Prerequisites:
+- Node.js
+- `VITE_DEEPGRAM_API_KEY` in `.env.local`
+- A working proxy route for MiniMax at `/api/minimax`
+
+Run locally:
+
+```bash
+npm install
+npm run dev
+```
+
+Then open the local Vite URL shown in the terminal.
+
+## Supported Output
+
+The generated minutes are structured around:
+
+- Executive summary
+- Key discussion points
+- Decisions made
+- Action items in a Markdown table
+
+The DOCX exporter supports multiple visual templates, including a neutral corporate layout and a more modern blue-styled layout.
+
+## Project Structure
+
+- `App.tsx` — upload flow, analysis states, preview UI
+- `services/geminiService.ts` — transcription + analysis pipeline
+- `services/docxService.ts` — DOCX generation and template styling
+- `components/` — buttons, inputs, Markdown rendering
+- `types.ts` — shared models and export types
+
+## Status
+
+Prototype focused on meeting-to-minutes conversion for French-language workflows. The UI is already usable as a single-user tool, but deployment still depends on correct API and proxy configuration.
