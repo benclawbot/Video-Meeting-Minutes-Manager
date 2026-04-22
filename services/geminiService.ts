@@ -113,10 +113,10 @@ export const analyzeMeetingVideo = async (
   date: string,
   onStatusChange?: (status: string) => void
 ): Promise<AnalysisResult> => {
-  const minimaxKey = (import.meta as any).env?.MINIMAX_API_KEY || (import.meta as any).env?.VITE_MINIMAX_API_KEY;
+  const minimaxKey = (import.meta.env.VITE_MINIMAX_API_KEY || import.meta.env.MINIMAX_API_KEY) as string | undefined;
   if (!minimaxKey) throw new Error("Clé API MiniMax manquante (MINIMAX_API_KEY).");
 
-  const groqKey = (import.meta as any).env?.GROQ_API_KEY || (import.meta as any).env?.VITE_GROQ_API_KEY;
+  const groqKey = (import.meta.env.VITE_GROQ_API_KEY || import.meta.env.GROQ_API_KEY) as string | undefined;
   if (!groqKey) throw new Error("Clé API Groq manquante (GROQ_API_KEY).");
 
   const chatClient = new OpenAI({
@@ -134,7 +134,8 @@ export const analyzeMeetingVideo = async (
   // ── Step 1: Decode audio ──────────────────────────────────────────────────────
   if (onStatusChange) onStatusChange("EXTRACTING_AUDIO");
 
-  const decodeCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+  const decodeCtx = new AudioCtx();
   const arrayBuffer = await mediaFile.arrayBuffer();
   const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
   await decodeCtx.close();
@@ -188,10 +189,11 @@ export const analyzeMeetingVideo = async (
     } catch (err: any) {
       const msg = err?.message || "";
       if (msg.includes("413") || wavBlob.size > 21 * 1024 * 1024) {
-        throw new Error(`Chunk ${idx + 1} trop volumineux. Veuillez diviser le fichier audio.`);
+        // Log warning but continue — skip failed chunk per spec v1
+        console.warn(`Chunk ${idx + 1} trop volumineux (413), ignoré:`, msg);
+      } else {
+        console.warn(`Transcription chunk ${idx + 1} failed:`, msg);
       }
-      // Log warning but continue — skip failed chunks
-      console.warn(`Transcription chunk ${idx + 1} failed:`, msg);
     }
   }
 
