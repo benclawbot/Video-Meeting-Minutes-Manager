@@ -35,12 +35,12 @@ const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
       headerBg: "1e293b", // slate-800
       headerText: "FFFFFF",
       rowText: "000000",
-      border: "e2e8f0",
+      border: "1e293b",   // bold dark border matching header
       title: "1e293b",
-      subtitle: "1e293b",
-      rowEvenBg: "f8fafc" // zebra
+      subtitle: "1e293b", // h2 = same dark for readability
+      rowEvenBg: "f1f5f9" // zebra (slate-100)
     },
-    borders: { style: BorderStyle.SINGLE, size: 4, color: "e2e8f0" },
+    borders: { style: BorderStyle.SINGLE, size: 6, color: "1e293b" },
     headerTransform: 'uppercase'
   },
   modern: {
@@ -50,13 +50,13 @@ const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
     colors: {
       headerBg: "0c4a6e", // sky-900
       headerText: "FFFFFF",
-      rowText: "1e293b",
-      border: "bae6fd",
+      rowText: "0f172a",   // near-black for readability
+      border: "0c4a6e",   // bold border matching header
       title: "0ea5e9",
-      subtitle: "0284c7",
-      rowEvenBg: "f0f9ff" // zebra
+      subtitle: "0c4a6e",  // h2 = dark for readability
+      rowEvenBg: "f0f9ff"  // zebra (sky-50)
     },
-    borders: { style: BorderStyle.SINGLE, size: 4, color: "bae6fd" },
+    borders: { style: BorderStyle.SINGLE, size: 6, color: "0c4a6e" },
     headerTransform: 'none'
   },
   executive: {
@@ -67,12 +67,12 @@ const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
       headerBg: "1e3a5f", // bleu marine
       headerText: "FFFFFF",
       rowText: "000000",
-      border: "d0d8e0",
+      border: "1e3a5f",  // bold border matching header
       title: "1e3a5f",
-      subtitle: "1e3a5f",
+      subtitle: "1e3a5f", // h2 = same dark for readability
       rowEvenBg: "f0f4f8" // zebra
     },
-    borders: { style: BorderStyle.SINGLE, size: 4, color: "d0d8e0" },
+    borders: { style: BorderStyle.SINGLE, size: 6, color: "1e3a5f" },
     headerTransform: 'uppercase'
   }
 };
@@ -185,9 +185,11 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
 
       while (i < lines.length && lines[i].trim().includes('|')) {
         const cells = parseCells(lines[i]);
-        if (cells.length > 0) {
-          const rowIdx = rows.length; // 0 = header already pushed
-          const isEven = rowIdx % 2 === 1;
+        // Skip separator rows (|---|---|) — they have all-empty cells
+        if (cells.length > 0 && cells.some(c => c.trim() !== '')) {
+          const rowIdx = rows.length; // 0 = header already pushed, 1 = first data row
+          // First data row gets zebra shading (matches web renderer)
+          const isEven = rowIdx % 2 === 0;
           rows.push(new TableRow({
             children: cells.map(cell => new TableCell({
               children: [new Paragraph({
@@ -203,7 +205,7 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
                 right: tableBorderStyle
               },
               margins: CELL_MARGINS,
-              verticalAlign: VerticalAlign.CENTER
+              verticalAlign: VerticalAlign.TOP
             }))
           }));
         }
