@@ -42,6 +42,22 @@ const encodeWav16Bit = (samples: Float32Array, sampleRate: number): Blob => {
 
 // ─── Audio Utilities ──────────────────────────────────────────────────────────
 
+const resampleAudio = async (
+  audioBuffer: AudioBuffer,
+  targetRate: number
+): Promise<AudioBuffer> => {
+  const offlineCtx = new OfflineAudioContext(
+    1,
+    Math.ceil(audioBuffer.duration * targetRate),
+    targetRate
+  );
+  const source = offlineCtx.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(offlineCtx.destination);
+  source.start();
+  return await offlineCtx.startRendering();
+};
+
 interface AudioSegment {
   startSample: number;
   endSample: number;
@@ -143,39 +159,32 @@ export const analyzeMeetingVideo = async (
   const sampleRate = audioBuffer.sampleRate;
   const samples = audioBuffer.getChannelData(0);
 
-  // ── Step 2: Detect silence-based segments ────────────────────────────────────
+  // ── Step 2: Resample entire audio to TARGET_RATE first ─────────────────────
   if (onStatusChange) onStatusChange("PROCESSING");
 
-  const segments = detectSilenceSegments(samples, sampleRate);
+  const TARGET_RATE = 16000; // 16kHz for Whisper quality
+  let resampledSamples: Float32Array;
 
-  // ── Step 3: Transcribe each segment ─────────────────────────────────────────
+  if (sampleRate !== TARGET_RATE) {
+    const resampledBuffer = await resampleAudio(audioBuffer, TARGET_RATE);
+    resampledSamples = resampledBuffer.getChannelData(0);
+  } else {
+    resampledSamples = samples;
+  }
+
+  // ── Step 3: Detect silence-based segments ────────────────────────────────────
+  const segments = detectSilenceSegments(resampledSamples, TARGET_RATE);
+
+  // ── Step 4: Transcribe each segment ─────────────────────────────────────────
   if (onStatusChange) onStatusChange("UPLOADING");
 
   const transcriptionParts: string[] = [];
-  const TARGET_RATE = 16000; // 16kHz for Whisper quality
 
   for (let idx = 0; idx < segments.length; idx++) {
     const seg = segments[idx];
-    const chunkSamples = samples.subarray(seg.startSample, seg.endSample);
-    const chunkDuration = (seg.endSample - seg.startSample) / sampleRate;
+    const chunkSamples = resampledSamples.subarray(seg.startSample, seg.endSample);
 
-    // Build AudioBuffer from chunk samples, resample if needed
-    let resampled: Float32Array;
-    if (sampleRate !== TARGET_RATE) {
-      const chunkCtx = new OfflineAudioContext(1, Math.ceil(chunkDuration * TARGET_RATE), TARGET_RATE);
-      const chunkAudioBuffer = chunkCtx.createBuffer(1, chunkSamples.length, sampleRate);
-      chunkAudioBuffer.getChannelData(0).set(chunkSamples);
-      const audioBufferSource = chunkCtx.createBufferSource();
-      audioBufferSource.buffer = chunkAudioBuffer;
-      audioBufferSource.connect(chunkCtx.destination);
-      audioBufferSource.start();
-      const resampledBuffer = await chunkCtx.startRendering();
-      resampled = resampledBuffer.getChannelData(0);
-    } else {
-      resampled = chunkSamples;
-    }
-
-    const wavBlob = encodeWav16Bit(resampled, TARGET_RATE);
+    const wavBlob = encodeWav16Bit(chunkSamples, TARGET_RATE);
     const audioFile = new File([wavBlob], `chunk-${idx}.wav`, { type: "audio/wav" });
 
     try {
