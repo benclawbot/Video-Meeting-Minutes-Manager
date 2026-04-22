@@ -10,20 +10,25 @@ export default defineConfig(({ mode }) => {
         port: 3000,
         host: '0.0.0.0',
         proxy: {
-          '/api/minimax': {
-            target: 'https://api.minimax.io',
+          '/minimax-api': {
+            target: 'https://api.minimaxi.chat',
             changeOrigin: true,
-            rewrite: (reqPath) => reqPath.replace(/^\/api\/minimax/, '/anthropic/v1'),
-            configure: (proxy) => {
-              proxy.on('proxyReq', (proxyReq) => {
-                proxyReq.setHeader('x-api-key', env.VITE_MINIMAX_API_KEY || '');
-                proxyReq.setHeader('anthropic-version', '2023-06-01');
-              });
-            },
+            rewrite: (path) => path.replace(/^\/minimax-api/, ''),
+            secure: true,
+          },
+          '/groq-api': {
+            target: 'https://api.groq.com',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/groq-api/, ''),
+            secure: true,
           },
         },
       },
       plugins: [react(), tailwindcss()],
+      define: {
+        'process.env.MINIMAX_API_KEY': JSON.stringify(env.MINIMAX_API_KEY),
+        'process.env.GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY),
+      },
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),

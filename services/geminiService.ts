@@ -1,31 +1,15 @@
+import OpenAI from "openai";
 import { AnalysisResult } from "../types";
 
-/**
- * Meeting analysis using Deepgram nova-2 + MiniMax M2.7.
- *
- * 2-step pipeline:
- * 1. Transcribe audio via Deepgram nova-2 (accepts WAV/PCM directly, free tier available)
- * 2. Analyze transcription via MiniMax M2.7 Anthropic-compatible API (text-only)
- *
- * Audio is chunked to 5-minute segments at 8kHz 16-bit mono for efficient transcription.
- *
- * Transcription: Deepgram nova-2
- * Analysis: MiniMax M2.7
- * Docs: https://console.deepgram.com/docs, https://platform.minimaxi.com
- */
+// ─── MiniMax Configuration ────────────────────────────────────────────────────
+const MINIMAX_BASE_URL   = `${window.location.origin}/minimax-api/v1`;
+const MINIMAX_CHAT_MODEL = "minimax-m2.5";
 
-// Deepgram API — CORS supported from browser
-const DEEPGRAM_API = "https://api.deepgram.com/v1/listen";
-// Anthropic-compatible API — must go through Vite proxy for header injection
-const ANTHROPIC_API = "/api/minimax";
+// ─── Groq Configuration (STT) ─────────────────────────────────────────────────
+const GROQ_BASE_URL  = `${window.location.origin}/groq-api/openai/v1`;
+const GROQ_STT_MODEL = "whisper-large-v3";
 
-// 5 min at 8kHz 16-bit mono = ~4.8MB WAV — well under Whisper-1's 25MB limit.
-const MAX_CHUNK_SECS = 5 * 60; // 5 minutes per chunk
-const CHUNK_SAMPLE_RATE = 8000; // 8kHz 16-bit mono
-
-// ---------------------------------------------------------------------------
-// Audio encoding
-// ---------------------------------------------------------------------------
+// ─── Audio Utilities ──────────────────────────────────────────────────────────
 
 const encodeWav16Bit = (samples: Float32Array, sampleRate: number): Blob => {
   const numSamples = samples.length;
@@ -56,87 +40,72 @@ const encodeWav16Bit = (samples: Float32Array, sampleRate: number): Blob => {
   return new Blob([buffer], { type: "audio/wav" });
 };
 
-const resampleAudio = async (
-  audioBuffer: AudioBuffer,
-  targetRate: number
-): Promise<AudioBuffer> => {
-  const offlineCtx = new OfflineAudioContext(
-    1,
-    Math.ceil(audioBuffer.duration * targetRate),
-    targetRate
-  );
-  const source = offlineCtx.createBufferSource();
-  source.buffer = audioBuffer;
-  source.connect(offlineCtx.destination);
-  source.start();
-  return await offlineCtx.startRendering();
-};
+// ─── Audio Utilities ──────────────────────────────────────────────────────────
 
+interface AudioSegment {
+  startSample: number;
+  endSample: number;
+}
 
-// ---------------------------------------------------------------------------
-// Audio extraction — returns raw Float32Array samples at a target sample rate
-// ---------------------------------------------------------------------------
-
-const extractAudioSamples = async (
-  mediaFile: File,
-  targetRate: number,
-  onStatusChange?: (status: string) => void
-): Promise<{ samples: Float32Array; sampleRate: number }> => {
-  if (onStatusChange) onStatusChange("EXTRACTING_AUDIO");
-
-  const decodeCtx = new AudioContext();
-  const arrayBuffer = await mediaFile.arrayBuffer();
-  const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
-  await decodeCtx.close();
-
-  if (audioBuffer.sampleRate !== targetRate) {
-    if (onStatusChange) onStatusChange("RESAMPLING_AUDIO");
-    const resampled = await resampleAudio(audioBuffer, targetRate);
-    return { samples: resampled.getChannelData(0), sampleRate: targetRate };
-  }
-
-  return { samples: audioBuffer.getChannelData(0), sampleRate: audioBuffer.sampleRate };
-};
-
-// ---------------------------------------------------------------------------
-// Transcribe one audio chunk
-// ---------------------------------------------------------------------------
-
-const transcribeChunk = async (
+/**
+ * Detect silence-based segments in audio.
+ * Splits at silence gaps ≥ minSilenceSecs where amplitude stays below threshold.
+ */
+const detectSilenceSegments = (
   samples: Float32Array,
   sampleRate: number,
-  apiKey: string,
-  chunkIndex: number,
-  totalChunks: number
-): Promise<string> => {
-  const wavBlob = encodeWav16Bit(samples, sampleRate);
+  minSilenceSecs: number = 1.5,
+  silenceThreshold: number = 0.01
+): AudioSegment[] => {
+  const segments: AudioSegment[] = [];
+  const minSilenceSamples = Math.floor(minSilenceSecs * sampleRate);
 
-  const response = await fetch(`${DEEPGRAM_API}?model=nova-2&language=fr&smart_format=true`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Token ${apiKey}`,
-      "Content-Type": "audio/wav",
-    },
-    body: wavBlob,
-  });
+  let segmentStart = 0;
+  let i = 0;
+  const total = samples.length;
 
-  if (!response.ok) {
-    const text = await response.text();
-    let msg = text;
-    try { const err = JSON.parse(text); msg = err?.err?.msg || err?.message || text; } catch {}
-    throw new Error(`Deepgram transcription error (chunk ${chunkIndex + 1}): ${msg}`);
+  while (i < total) {
+    // Slide forward until we find non-silence
+    while (i < total && Math.abs(samples[i]) < silenceThreshold) {
+      i++;
+    }
+
+    if (i >= total) break;
+    segmentStart = i;
+
+    // Advance through non-silence
+    while (i < total && Math.abs(samples[i]) >= silenceThreshold) {
+      i++;
+    }
+
+    // Check for a silence gap
+    let silenceStart = i;
+    while (i < total && Math.abs(samples[i]) < silenceThreshold) {
+      i++;
+    }
+
+    const silenceLen = i - silenceStart;
+    if (silenceLen >= minSilenceSamples && i < total) {
+      // Valid silence → split here
+      segments.push({ startSample: segmentStart, endSample: silenceStart });
+      segmentStart = i;
+    }
   }
 
-  const json = await response.json();
-  const content = json?.results?.channels?.[0]?.alternatives?.[0]?.transcript || "";
+  // Add final segment
+  if (segmentStart < total) {
+    segments.push({ startSample: segmentStart, endSample: total });
+  }
 
-  const label = totalChunks > 1 ? ` [Partie ${chunkIndex + 1}/${totalChunks}]` : "";
-  return (content.trim() + label).trim();
+  // Fallback: if no segments detected (continuous speech), return one segment
+  if (segments.length === 0) {
+    segments.push({ startSample: 0, endSample: total });
+  }
+
+  return segments;
 };
 
-// ---------------------------------------------------------------------------
-// Main export
-// ---------------------------------------------------------------------------
+// ─── Main Export ──────────────────────────────────────────────────────────────
 
 export const analyzeMeetingVideo = async (
   mediaFile: File,
@@ -144,78 +113,101 @@ export const analyzeMeetingVideo = async (
   date: string,
   onStatusChange?: (status: string) => void
 ): Promise<AnalysisResult> => {
-  const deepgramKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
-  if (!deepgramKey) {
-    throw new Error("Clé API Deepgram manquante. Ajoutez VITE_DEEPGRAM_API_KEY dans .env.local.");
-  }
+  const minimaxKey = (import.meta as any).env?.MINIMAX_API_KEY || (import.meta as any).env?.VITE_MINIMAX_API_KEY;
+  if (!minimaxKey) throw new Error("Clé API MiniMax manquante (MINIMAX_API_KEY).");
 
+  const groqKey = (import.meta as any).env?.GROQ_API_KEY || (import.meta as any).env?.VITE_GROQ_API_KEY;
+  if (!groqKey) throw new Error("Clé API Groq manquante (GROQ_API_KEY).");
+
+  const chatClient = new OpenAI({
+    apiKey: minimaxKey,
+    baseURL: MINIMAX_BASE_URL,
+    dangerouslyAllowBrowser: true,
+  });
+
+  const sttClient = new OpenAI({
+    apiKey: groqKey,
+    baseURL: GROQ_BASE_URL,
+    dangerouslyAllowBrowser: true,
+  });
+
+  // ── Step 1: Decode audio ──────────────────────────────────────────────────────
   if (onStatusChange) onStatusChange("EXTRACTING_AUDIO");
-  const decodeCtx = new AudioContext();
-  const metaBuffer = await mediaFile.arrayBuffer();
-  const metaAudio = await decodeCtx.decodeAudioData(metaBuffer);
+
+  const decodeCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const arrayBuffer = await mediaFile.arrayBuffer();
+  const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
   await decodeCtx.close();
 
-  const durationSecs = metaAudio.duration;
-  const secsPerChunk = MAX_CHUNK_SECS;
-  const numChunks = Math.ceil(durationSecs / secsPerChunk);
+  const sampleRate = audioBuffer.sampleRate;
+  const samples = audioBuffer.getChannelData(0);
 
-  // For very long meetings (>35 min at 8kHz), drop to 4kHz for smaller WAV payloads
-  const sampleRate = numChunks > 5 ? 4000 : CHUNK_SAMPLE_RATE;
-
-  // Extract audio at chosen sample rate
-  const { samples, sampleRate: actualRate } = await extractAudioSamples(
-    mediaFile,
-    sampleRate,
-    onStatusChange
-  );
-
+  // ── Step 2: Detect silence-based segments ────────────────────────────────────
   if (onStatusChange) onStatusChange("PROCESSING");
 
-  // Chunk the samples by time duration
-  const samplesPerChunk = MAX_CHUNK_SECS * actualRate;
-  const totalSamples = samples.length;
-  const actualChunks = Math.ceil(totalSamples / samplesPerChunk);
+  const segments = detectSilenceSegments(samples, sampleRate);
 
-  // Transcribe all chunks (parallel for speed)
-  const chunkPromises: Promise<string>[] = [];
-  for (let i = 0; i < actualChunks; i++) {
-    const start = i * samplesPerChunk;
-    const end = Math.min(start + samplesPerChunk, totalSamples);
-    const chunkSamples = samples.subarray(start, end);
-    chunkPromises.push(
-      transcribeChunk(chunkSamples, actualRate, deepgramKey, i, actualChunks).catch(
-        (err) => { throw err; }
-      )
-    );
+  // ── Step 3: Transcribe each segment ─────────────────────────────────────────
+  if (onStatusChange) onStatusChange("UPLOADING");
+
+  const transcriptionParts: string[] = [];
+  const TARGET_RATE = 16000; // 16kHz for Whisper quality
+
+  for (let idx = 0; idx < segments.length; idx++) {
+    const seg = segments[idx];
+    const chunkSamples = samples.subarray(seg.startSample, seg.endSample);
+    const chunkDuration = (seg.endSample - seg.startSample) / sampleRate;
+
+    // Build AudioBuffer from chunk samples, resample if needed
+    let resampled: Float32Array;
+    if (sampleRate !== TARGET_RATE) {
+      const chunkCtx = new OfflineAudioContext(1, Math.ceil(chunkDuration * TARGET_RATE), TARGET_RATE);
+      const chunkAudioBuffer = chunkCtx.createBuffer(1, chunkSamples.length, sampleRate);
+      chunkAudioBuffer.getChannelData(0).set(chunkSamples);
+      const audioBufferSource = chunkCtx.createBufferSource();
+      audioBufferSource.buffer = chunkAudioBuffer;
+      audioBufferSource.connect(chunkCtx.destination);
+      audioBufferSource.start();
+      const resampledBuffer = await chunkCtx.startRendering();
+      resampled = resampledBuffer.getChannelData(0);
+    } else {
+      resampled = chunkSamples;
+    }
+
+    const wavBlob = encodeWav16Bit(resampled, TARGET_RATE);
+    const audioFile = new File([wavBlob], `chunk-${idx}.wav`, { type: "audio/wav" });
+
+    try {
+      const transcription = await sttClient.audio.transcriptions.create({
+        file: audioFile,
+        model: GROQ_STT_MODEL,
+      });
+      if (transcription.text.trim()) {
+        transcriptionParts.push(transcription.text.trim());
+      }
+    } catch (err: any) {
+      const msg = err?.message || "";
+      if (msg.includes("413") || wavBlob.size > 21 * 1024 * 1024) {
+        throw new Error(`Chunk ${idx + 1} trop volumineux. Veuillez diviser le fichier audio.`);
+      }
+      // Log warning but continue — skip failed chunks
+      console.warn(`Transcription chunk ${idx + 1} failed:`, msg);
+    }
   }
 
-  let allTranscriptions: string[];
-  try {
-    allTranscriptions = await Promise.all(chunkPromises);
-  } catch (err: any) {
-    throw err;
+  const transcript = transcriptionParts.join(" ");
+  if (!transcript?.trim()) {
+    throw new Error("Aucun contenu audio détecté dans le fichier.");
   }
 
-  // Combine transcriptions
-  const combinedTranscription = allTranscriptions
-    .map((t, i) => {
-      if (actualChunks === 1) return t;
-      return `[Partie ${i + 1}] ${t}`;
-    })
-    .join("\n\n");
+  // ── Step 4: Generate meeting minutes ─────────────────────────────────────────
+  if (onStatusChange) onStatusChange("PROCESSING");
 
-  if (!combinedTranscription || combinedTranscription.trim().length < 5) {
-    throw new Error("Impossible de transcrire l'audio. Vérifiez que le fichier contient de la parole.");
-  }
+  const prompt = `
+Tu es un assistant de direction expert. Analyse cette réunion "${title}" du ${date}.
+Génère un compte rendu professionnel rigoureux en FRANÇAIS à partir de la transcription ci-dessous.
 
-  // Step 2: Analyze transcription via Anthropic-compatible API
-  const prompt = `Tu es un assistant de direction expert. Analyse cette réunion "${title}" du ${date}.
-À partir de la transcription suivante, génère un compte rendu professionnel rigoureux en FRANÇAIS.
-
-TRANSCRIPTION COMPLÈTE:
-${combinedTranscription}
-
-IMPORTANT : Ne fournis QUE le contenu du compte rendu. Ne montre PAS ton raisonnement. Débute DIRECTEMENT par le titre.
+IMPORTANT : Ne fournis QUE le contenu du compte rendu. N'affiche PAS ton processus de réflexion ("thought") et ne commence PAS par un texte introductif. Débute DIRECTEMENT par le titre.
 
 CONSIGNES DE FORMATAGE STRICTES (Markdown) :
 1. # Compte Rendu : ${title}
@@ -227,80 +219,40 @@ CONSIGNES DE FORMATAGE STRICTES (Markdown) :
    | :--- | :--- | :--- |
    | ... | ... | ... |
 
-Réponds uniquement en Markdown, pas en JSON.`;
+IMPORTANT: Réponds directement avec le texte au format Markdown. N'utilise PAS de JSON.
 
-  if (onStatusChange) onStatusChange("ANALYZING");
+--- TRANSCRIPTION ---
+${transcript}
+--- FIN DE TRANSCRIPTION ---
+  `.trim();
 
-  const analysisResponse = await fetch(`${ANTHROPIC_API}/messages`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "MiniMax/M2.7",
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: prompt,
-            },
-          ],
-        },
-      ],
-      max_tokens: 8192,
-    }),
-  });
-
-  if (!analysisResponse.ok) {
-    const text = await analysisResponse.text();
-    let msg = text;
-    try { const err = JSON.parse(text); msg = err?.error?.message || err?.message || text; } catch {}
-    throw new Error(`MiniMax error ${analysisResponse.status}: ${msg}`);
+  let text: string;
+  try {
+    const response = await chatClient.chat.completions.create({
+      model: MINIMAX_CHAT_MODEL,
+      messages: [{ role: "user", content: prompt }],
+    });
+    text = response.choices?.[0]?.message?.content || "";
+  } catch (err: any) {
+    throw new Error("Erreur de génération : " + (err?.message || "inconnue"));
   }
 
-  const analysisJson = await analysisResponse.json();
-  let minutes = "";
-
-  // Anthropic API: { content: [{ type: "text", text: "..." }, { type: "thinking", thinking: "..." }] }
-  if (analysisJson.content) {
-    const textBlocks = analysisJson.content.filter((block: any) => block.type === "text");
-    const thinkingBlocks = analysisJson.content.filter((block: any) => block.type === "thinking");
-    if (textBlocks.length > 0) {
-      minutes = textBlocks.map((block: any) => block.text).join("\n");
-    } else if (thinkingBlocks.length > 0) {
-      for (const block of thinkingBlocks) {
-        if (block.thinking && block.thinking.length > 50) {
-          const content = block.thinking;
-          const h1Match = content.match(/#\s+Compte\s*Rendu/);
-          if (h1Match) {
-            minutes = content.substring(h1Match.index!);
-            break;
-          }
-          minutes = content;
-        }
-      }
-    }
-  }
-
-  // Cleanup markdown artifacts
-  minutes = minutes
+  // Clean up markdown artifacts
+  text = text
     .replace(/^```markdown\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/```$/i, "");
 
-  const titleIndex = minutes.indexOf("# Compte Rendu");
+  // Strip any thinking preamble — jump to first heading
+  const titleIndex = text.indexOf("# Compte Rendu");
   if (titleIndex !== -1) {
-    minutes = minutes.substring(titleIndex);
+    text = text.substring(titleIndex);
   } else {
-    const firstH1 = minutes.indexOf("# ");
-    if (firstH1 !== -1) minutes = minutes.substring(firstH1);
+    const firstH1 = text.indexOf("# ");
+    if (firstH1 !== -1) text = text.substring(firstH1);
   }
 
-  if (!minutes || minutes.trim().length < 10) {
-    throw new Error("Aucun contenu généré par le modèle.");
-  }
+  if (!text) throw new Error("Aucun contenu généré.");
 
-  return { minutes };
+  return { minutes: text };
 };

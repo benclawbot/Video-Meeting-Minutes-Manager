@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Video, 
-  FileText, 
-  Calendar, 
-  UploadCloud, 
-  CheckCircle2, 
+import {
+  Video,
+  FileText,
+  Calendar,
+  UploadCloud,
+  CheckCircle2,
   AlertCircle,
-  FileVideo,
   X,
   PlayCircle,
   Download,
@@ -35,15 +34,44 @@ const App: React.FC = () => {
     title: '',
     date: new Date().toISOString().split('T')[0]
   });
-  
+
   const [mediaFile, setMediaFile] = useState<MediaFile | null>(null);
   const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<DocxTemplateId>('corporate');
-  
+
+  const [hasApiKey, setHasApiKey] = useState<boolean>(true);
+  const [isCheckingKey, setIsCheckingKey] = useState<boolean>(true);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const checkApiKey = async () => {
+      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
+        try {
+          const selected = await window.aistudio.hasSelectedApiKey();
+          setHasApiKey(selected);
+        } catch (e) {
+          console.error("Error checking API key:", e);
+        }
+      }
+      setIsCheckingKey(false);
+    };
+    checkApiKey();
+  }, []);
+
+  const handleOpenKeyDialog = async () => {
+    if (window.aistudio && window.aistudio.openSelectKey) {
+      try {
+        await window.aistudio.openSelectKey();
+        setHasApiKey(true);
+      } catch (e) {
+        console.error("Error opening key dialog:", e);
+      }
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -63,17 +91,17 @@ const App: React.FC = () => {
       const file = e.target.files[0];
       const isVideo = file.type.startsWith('video/');
       const isAudio = file.type.startsWith('audio/') || file.name.endsWith('.m4a');
-      
+
       if (!isVideo && !isAudio) {
         setError("Veuillez télécharger un fichier vidéo ou audio (M4A) valide.");
         return;
       }
-      
+
       if (file.size > 200 * 1024 * 1024) {
         setError("Le fichier dépasse la limite de 200Mo.");
         return;
       }
-      
+
       setError(null);
       const previewUrl = URL.createObjectURL(file);
       setMediaFile({ file, previewUrl, isAudioOnly: isAudio && !isVideo });
@@ -126,7 +154,6 @@ const App: React.FC = () => {
     switch(status) {
       case AnalysisStatus.EXTRACTING_AUDIO: return "Extraction de l'audio...";
       case AnalysisStatus.UPLOADING: return "Transmission à l'IA...";
-      case AnalysisStatus.TRANSCRIBING: return "Transcription de l'audio...";
       case AnalysisStatus.PROCESSING: return "Analyse du contenu...";
       default: return "Traitement en cours...";
     }
@@ -148,13 +175,37 @@ const App: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-100 tracking-tight">MeetingMind</h1>
           </div>
           <div className="text-sm text-slate-400 hidden sm:block">
-            Vidéo & Audio (M4A) • Deepgram nova-2 + MiniMax M2.7
+            Vidéo & Audio (M4A) • MiniMax M2.5
           </div>
         </div>
       </header>
 
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+        {!hasApiKey && !isCheckingKey ? (
+          <div className="flex flex-col items-center justify-center h-[60vh] bg-slate-900 rounded-3xl border border-slate-800 p-12 text-center shadow-2xl">
+            <div className="w-20 h-20 bg-primary-500/10 rounded-full flex items-center justify-center mb-8 border border-primary-500/20">
+              <Palette className="w-10 h-10 text-primary-400" />
+            </div>
+            <h2 className="text-2xl font-bold text-slate-100 mb-4">Configuration Requise</h2>
+            <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
+              Pour utiliser MiniMax M2.5, vous devez configurer une clé API MiniMax valide dans le fichier <code>.env.local</code> (variable <code>MINIMAX_API_KEY</code>).
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4">
+              <Button onClick={handleOpenKeyDialog} size="lg" className="px-8">
+                Sélectionner une Clé API
+              </Button>
+              <a
+                href="https://www.minimaxi.com/document/guides"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-slate-300 hover:text-white transition-colors"
+              >
+                Documentation MiniMax
+              </a>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
           <div className="lg:col-span-4 space-y-6">
             <div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 p-6">
               <h2 className="text-lg font-semibold text-slate-100 mb-6 flex items-center">
@@ -172,7 +223,7 @@ const App: React.FC = () => {
                   required
                   disabled={status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED}
                 />
-                
+
                 <Input
                   label="Date"
                   type="date"
@@ -186,16 +237,16 @@ const App: React.FC = () => {
                 <div className="space-y-2">
                   <label className="block text-sm font-medium text-slate-400">Enregistrement (Vidéo ou M4A)</label>
                   {!mediaFile ? (
-                    <div 
+                    <div
                       className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer group ${status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED ? 'opacity-50 cursor-not-allowed border-slate-700' : 'hover:bg-slate-800/50 hover:border-primary-500/50 border-slate-700 bg-slate-800/30'}`}
                       onClick={() => (status === AnalysisStatus.IDLE || status === AnalysisStatus.ERROR || status === AnalysisStatus.COMPLETED) && fileInputRef.current?.click()}
                     >
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleFileChange} 
-                        accept="video/*,audio/x-m4a,audio/mp4,audio/m4a,.m4a" 
-                        className="hidden" 
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        accept="video/*,audio/x-m4a,audio/mp4,audio/m4a,.m4a"
+                        className="hidden"
                       />
                       <div className="mx-auto bg-slate-800 group-hover:bg-slate-700 w-12 h-12 rounded-full flex items-center justify-center mb-4 transition-colors">
                         <UploadCloud className="w-6 h-6 text-primary-400" />
@@ -215,10 +266,10 @@ const App: React.FC = () => {
                       ) : (
                         <video src={mediaFile.previewUrl} className="w-full h-48 object-contain bg-black" controls />
                       )}
-                      <button 
-                        type="button" 
-                        onClick={clearFile} 
-                        disabled={status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED} 
+                      <button
+                        type="button"
+                        onClick={clearFile}
+                        disabled={status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED}
                         className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full text-white transition-colors disabled:opacity-0 backdrop-blur-sm"
                       >
                         <X className="w-4 h-4" />
@@ -237,9 +288,9 @@ const App: React.FC = () => {
                   </div>
                 )}
 
-                <Button 
-                  type="submit" 
-                  className="w-full" 
+                <Button
+                  type="submit"
+                  className="w-full"
                   size="lg"
                   isLoading={status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED}
                   disabled={!mediaFile || !meetingDetails.title || !meetingDetails.date}
@@ -249,7 +300,7 @@ const App: React.FC = () => {
                 </Button>
               </form>
             </div>
-            
+
             <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
               <h4 className="text-sm font-semibold text-slate-200 mb-3 flex items-center">
                 <CheckCircle2 className="w-4 h-4 mr-1.5 text-primary-500" />
@@ -274,11 +325,11 @@ const App: React.FC = () => {
                       {new Date(meetingDetails.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-3">
-                    <button 
-                      onClick={handleManualExport} 
-                      className="flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 rounded-lg shadow-sm transition-colors ring-1 ring-primary-500" 
+                    <button
+                      onClick={handleManualExport}
+                      className="flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 rounded-lg shadow-sm transition-colors ring-1 ring-primary-500"
                       title="Télécharger DOCX"
                     >
                       {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : <Download className="w-4 h-4 mr-2" />}
@@ -287,7 +338,6 @@ const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Template Selector Section */}
                 <div className="bg-slate-900 border-b border-slate-800 p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Palette className="w-4 h-4 text-primary-400" />
@@ -300,8 +350,8 @@ const App: React.FC = () => {
                         onClick={() => setSelectedTemplate(tpl.id)}
                         className={`
                           relative group flex flex-col items-center p-2 rounded-lg border transition-all duration-200
-                          ${selectedTemplate === tpl.id 
-                            ? 'bg-slate-800 border-primary-500 ring-1 ring-primary-500' 
+                          ${selectedTemplate === tpl.id
+                            ? 'bg-slate-800 border-primary-500 ring-1 ring-primary-500'
                             : 'bg-slate-950 border-slate-800 hover:border-slate-600'
                           }
                         `}
@@ -339,7 +389,7 @@ const App: React.FC = () => {
                      </div>
                      <h3 className="text-xl font-semibold text-slate-100 mb-2">{getStatusMessage()}</h3>
                      <p className="text-slate-400 mb-8">
-                       L'IA traite votre réunion pour identifier les points clés et structurer votre compte rendu. 
+                       L'IA traite votre réunion pour identifier les points clés et structurer votre compte rendu.
                        Cela peut prendre 1 à 2 minutes selon la durée.
                      </p>
                      <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
@@ -353,7 +403,7 @@ const App: React.FC = () => {
                     </div>
                     <h3 className="text-xl font-semibold text-slate-100 mb-2">Prêt pour l'analyse</h3>
                     <p className="text-slate-400 max-w-md mx-auto">
-                      Téléchargez un enregistrement vidéo ou audio (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via MiniMax M2.7.
+                      Téléchargez un enregistrement vidéo ou audio Zoom (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via MiniMax M2.5.
                     </p>
                   </>
                 )}
@@ -361,6 +411,7 @@ const App: React.FC = () => {
             )}
           </div>
         </div>
+        )}
       </main>
     </div>
   );
