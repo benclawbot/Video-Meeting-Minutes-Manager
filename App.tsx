@@ -160,8 +160,9 @@ const App: React.FC = () => {
   };
 
   const templates: {id: DocxTemplateId, name: string, color: string}[] = [
-    { id: 'corporate', name: 'Corporate', color: 'bg-slate-600' },
+    { id: 'corporate', name: 'Corporate', color: 'bg-slate-700' },
     { id: 'modern', name: 'Modern', color: 'bg-sky-500' },
+    { id: 'executive', name: 'Executive', color: 'bg-slate-800' },
   ];
 
   return (
