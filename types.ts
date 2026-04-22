@@ -23,4 +23,4 @@ export interface MediaFile {
   isAudioOnly: boolean;
 }
 
-export type DocxTemplateId = 'corporate' | 'modern';
+export type DocxTemplateId = 'corporate' | 'modern' | 'executive';
