@@ -16,6 +16,7 @@ interface TemplateStyle {
     border: string;
     title: string;
     subtitle: string;
+    rowEvenBg: string;
   };
   borders: {
     style: any;
@@ -28,33 +29,51 @@ interface TemplateStyle {
 const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
   corporate: {
     id: 'corporate',
-    name: 'Corporate Grey',
+    name: 'Corporate',
     fonts: { body: "Calibri", heading: "Calibri" },
     colors: {
-      headerBg: "F1F5F9", // Slate-100 (Very Light Grey) for better contrast
-      headerText: "000000", // Strictly Black
-      rowText: "000000", // Strictly Black
-      border: "CBD5E1", // Slate-300
-      title: "000000", // Strictly Black
-      subtitle: "000000" // Strictly Black
+      headerBg: "1e293b", // slate-800
+      headerText: "FFFFFF",
+      rowText: "000000",
+      border: "e2e8f0",
+      title: "1e293b",
+      subtitle: "1e293b",
+      rowEvenBg: "f8fafc" // zebra
     },
-    borders: { style: BorderStyle.SINGLE, size: 4 },
+    borders: { style: BorderStyle.SINGLE, size: 4, color: "e2e8f0" },
     headerTransform: 'uppercase'
   },
   modern: {
     id: 'modern',
-    name: 'Modern Blue',
+    name: 'Modern',
     fonts: { body: "Segoe UI", heading: "Segoe UI" },
     colors: {
-      headerBg: "0ea5e9", // Sky 500 (Primary)
+      headerBg: "0c4a6e", // sky-900
       headerText: "FFFFFF",
       rowText: "1e293b",
       border: "bae6fd",
       title: "0ea5e9",
-      subtitle: "0284c7"
+      subtitle: "0284c7",
+      rowEvenBg: "f0f9ff" // zebra
     },
-    borders: { style: BorderStyle.SINGLE, size: 0 }, // No borders or very light
+    borders: { style: BorderStyle.SINGLE, size: 4, color: "bae6fd" },
     headerTransform: 'none'
+  },
+  executive: {
+    id: 'executive',
+    name: 'Classic Executive',
+    fonts: { body: "Calibri", heading: "Calibri" },
+    colors: {
+      headerBg: "1e3a5f", // bleu marine
+      headerText: "FFFFFF",
+      rowText: "000000",
+      border: "d0d8e0",
+      title: "1e3a5f",
+      subtitle: "1e3a5f",
+      rowEvenBg: "f0f4f8" // zebra
+    },
+    borders: { style: BorderStyle.SINGLE, size: 4, color: "d0d8e0" },
+    headerTransform: 'uppercase'
   }
 };
 
@@ -167,18 +186,21 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
       while (i < lines.length && lines[i].trim().includes('|')) {
         const cells = parseCells(lines[i]);
         if (cells.length > 0) {
+          const rowIdx = rows.length; // 0 = header already pushed
+          const isEven = rowIdx % 2 === 1;
           rows.push(new TableRow({
             children: cells.map(cell => new TableCell({
-              children: [new Paragraph({ 
+              children: [new Paragraph({
                 children: renderFormattedText(cell, style.fonts.body, style.colors.rowText, 22),
                 alignment: AlignmentType.LEFT,
                 spacing: { before: 100, after: 100 }
               })],
-              borders: { 
-                top: tableBorderStyle, 
-                bottom: tableBorderStyle, 
-                left: tableBorderStyle, 
-                right: tableBorderStyle 
+              shading: isEven ? { fill: style.colors.rowEvenBg, type: ShadingType.SOLID } : undefined,
+              borders: {
+                top: tableBorderStyle,
+                bottom: tableBorderStyle,
+                left: tableBorderStyle,
+                right: tableBorderStyle
               },
               margins: CELL_MARGINS,
               verticalAlign: VerticalAlign.CENTER
