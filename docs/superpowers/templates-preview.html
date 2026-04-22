@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Template Preview — Tables comparaison</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f172a; font-family: system-ui, sans-serif; padding: 2rem; }
+  h1 { color: #e2e8f0; text-align: center; margin-bottom: 0.5rem; font-size: 1.2rem; }
+  .subtitle { color: #94a3b8; text-align: center; margin-bottom: 2rem; font-size: 0.85rem; }
+  .doc { width: 21cm; min-height: 29.7cm; background: white; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); margin: 0 auto 2rem; padding: 1.5cm; font-size: 0.75rem; }
+  h2.doc-title { font-size: 1.4rem; margin-bottom: 1.5rem; }
+  h3.section { margin: 1.2rem 0 0.5rem; font-size: 1rem; }
+  p { margin-bottom: 0.6rem; line-height: 1.5; text-align: justify; }
+
+  /* ── TABLE BASE ── */
+  table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+  th { padding: 0.5rem 0.75rem; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+  td { padding: 0.5rem 0.75rem; font-size: 0.7rem; }
+  th, td { text-align: left; border: 1px solid; }
+
+  /* ── CORPORATE (improved) ── */
+  .corporate-table { border-color: #e2e8f0; }
+  .corporate-table thead th {
+    background: #1e293b; color: white; border-color: #1e293b;
+  }
+  .corporate-table tbody tr:nth-child(even) { background: #f8fafc; }
+  .corporate-table tbody tr:nth-child(odd) { background: white; }
+  .corporate-table th, .corporate-table td { border-color: #e2e8f0; }
+  .corporate h2.doc-title { color: #1e293b; font-weight: 800; }
+  .corporate h3.section { color: #1e293b; font-weight: 700; }
+  .corporate p { color: #1a1a1a; }
+
+  /* ── MODERN (improved) ── */
+  .modern-table { border-color: #bae6fd; }
+  .modern-table thead th {
+    background: #0c4a6e; color: white; border-color: #0c4a6e;
+  }
+  .modern-table tbody tr:nth-child(even) { background: #f0f9ff; }
+  .modern-table tbody tr:nth-child(odd) { background: white; }
+  .modern-table th, .modern-table td { border-color: #bae6fd; }
+  .modern h2.doc-title { color: #0ea5e9; font-weight: 800; }
+  .modern h3.section { color: #0c4a6e; font-weight: 700; border-bottom: 2px solid #0ea5e9; padding-bottom: 0.2rem; }
+  .modern p { color: #475569; }
+
+  /* ── EXECUTIVE ── */
+  .executive-table { border-color: #d0d8e0; }
+  .executive-table thead th {
+    background: #1e3a5f; color: white; border-color: #1e3a5f;
+  }
+  .executive-table tbody tr:nth-child(even) { background: #f0f4f8; }
+  .executive-table tbody tr:nth-child(odd) { background: white; }
+  .executive-table th, .executive-table td { border-color: #d0d8e0; }
+  .executive h2.doc-title { color: #1e3a5f; font-weight: 800; }
+  .executive h3.section { color: #1e3a5f; font-weight: 700; }
+  .executive p { color: #1a1a1a; }
+  .executive .accent { color: #c9a84c; }
+
+  .doc-label { text-align: center; color: #64748b; font-size: 0.65rem; margin-top: -0.8rem; margin-bottom: 1rem; letter-spacing: 0.1em; text-transform: uppercase; }
+  .grid { display: flex; flex-direction: column; gap: 0; }
+  .doc-wrap { break-inside: avoid; }
+</style>
+</head>
+<body>
+<h1>Preview Templates — Amélioration tableaux</h1>
+<p class="subtitle">Corporate • Modern • Executive</p>
+
+<div class="grid">
+
+<!-- CORPORATE -->
+<div class="doc-wrap">
+<div class="doc corporate" style="margin-bottom: 2rem;">
+  <p class="doc-label">Corporate</p>
+  <h2 class="doc-title">Compte Rendu : Réunion de Direction</h2>
+  <h3 class="section">Synthèse</h3>
+  <p>La réunion a permis de valider les orientations stratégiques pour Q3 et d'identifier les axes prioritaires. Les décisions prises engagent l'ensemble des équipes.</p>
+
+  <h3 class="section">Actions à Entreprendre</h3>
+  <table class="corporate-table">
+    <thead>
+      <tr>
+        <th>Action</th>
+        <th>Responsable</th>
+        <th>Échéance</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Finaliser le budget Q3</td>
+        <td>Marie Dupont</td>
+        <td>15/06/2026</td>
+      </tr>
+      <tr>
+        <td>Lancer l'audit interne</td>
+        <td>Jean Martin</td>
+        <td>22/06/2026</td>
+      </tr>
+      <tr>
+        <td>Préparer la présentation CA</td>
+        <td>Pierre Leroy</td>
+        <td>01/07/2026</td>
+      </tr>
+      <tr>
+        <td>Revoir la roadmap produit</td>
+        <td>Sophie Bernard</td>
+        <td>10/07/2026</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<!-- MODERN -->
+<div class="doc-wrap">
+<div class="doc modern" style="margin-bottom: 2rem;">
+  <p class="doc-label">Modern</p>
+  <h2 class="doc-title">Compte Rendu : Réunion de Direction</h2>
+  <h3 class="section">Synthèse</h3>
+  <p>La réunion a permis de valider les orientations stratégiques pour Q3 et d'identifier les axes prioritaires. Les décisions prises engagent l'ensemble des équipes.</p>
+
+  <h3 class="section">Actions à Entreprendre</h3>
+  <table class="modern-table">
+    <thead>
+      <tr>
+        <th>Action</th>
+        <th>Responsable</th>
+        <th>Échéance</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Finaliser le budget Q3</td>
+        <td>Marie Dupont</td>
+        <td>15/06/2026</td>
+      </tr>
+      <tr>
+        <td>Lancer l'audit interne</td>
+        <td>Jean Martin</td>
+        <td>22/06/2026</td>
+      </tr>
+      <tr>
+        <td>Préparer la présentation CA</td>
+        <td>Pierre Leroy</td>
+        <td>01/07/2026</td>
+      </tr>
+      <tr>
+        <td>Revoir la roadmap produit</td>
+        <td>Sophie Bernard</td>
+        <td>10/07/2026</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+<!-- EXECUTIVE -->
+<div class="doc-wrap">
+<div class="doc executive" style="margin-bottom: 2rem;">
+  <p class="doc-label">Classic Executive</p>
+  <h2 class="doc-title">Compte Rendu : <span class="accent">Réunion de Direction</span></h2>
+  <h3 class="section">Synthèse</h3>
+  <p>La réunion a permis de valider les orientations stratégiques pour Q3 et d'identifier les axes prioritaires. Les décisions prises engagent l'ensemble des équipes.</p>
+
+  <h3 class="section">Actions à Entreprendre</h3>
+  <table class="executive-table">
+    <thead>
+      <tr>
+        <th>Action</th>
+        <th>Responsable</th>
+        <th>Échéance</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Finaliser le budget Q3</td>
+        <td>Marie Dupont</td>
+        <td>15/06/2026</td>
+      </tr>
+      <tr>
+        <td>Lancer l'audit interne</td>
+        <td>Jean Martin</td>
+        <td>22/06/2026</td>
+      </tr>
+      <tr>
+        <td>Préparer la présentation CA</td>
+        <td>Pierre Leroy</td>
+        <td>01/07/2026</td>
+      </tr>
+      <tr>
+        <td>Revoir la roadmap produit</td>
+        <td>Sophie Bernard</td>
+        <td>10/07/2026</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+</div>
+
+</div>
+</body>
+</html>
