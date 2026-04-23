@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const groqKey = process.env.GROQ_API_KEY;
+  const groqKey = process.env.VITE_GROQ_API_KEY;
   if (!groqKey) {
     return res.status(500).json({ error: 'Clé API Groq manquante.' });
   }
@@ -26,13 +26,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
     const buffer = Buffer.concat(chunks);
 
+    const form = new FormData();
+    form.append('file', new Blob([buffer], { type: 'audio/wav' }), 'chunk.wav');
+    form.append('model', GROQ_STT_MODEL);
+
     const groqRes = await fetch(`${GROQ_BASE_URL}/audio/transcriptions`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${groqKey}`,
-        'Content-Type': 'application/octet-stream',
       },
-      body: buffer,
+      body: form,
     });
 
     if (!groqRes.ok) {

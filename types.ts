@@ -5,6 +5,7 @@ export interface MeetingDetails {
 
 export interface AnalysisResult {
   minutes: string;
+  languageIssues?: string[];
 }
 
 export enum AnalysisStatus {

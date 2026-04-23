@@ -2,14 +2,14 @@ import { AnalysisResult } from "../types";
 
 // ─── Chunk Configuration ──────────────────────────────────────────────────────
 const TARGET_RATE = 16000;          // 16kHz for Whisper
-const CHUNK_DURATION_SEC = 300;     // 5-minute chunks
+const CHUNK_DURATION_SEC = 120;     // 2-minute chunks (~3.8MB WAV — under Vercel 4.5MB limit)
 const MIN_CHUNK_SEC = 0.01;
 
 // ─── Audio Utilities ──────────────────────────────────────────────────────────
 
-const encodeWav16Bit = (samples: Float32Array, sampleRate: number): Blob => {
+const encodeWav8Bit = (samples: Float32Array, sampleRate: number): Blob => {
   const numSamples = samples.length;
-  const buffer = new ArrayBuffer(44 + numSamples * 2);
+  const buffer = new ArrayBuffer(44 + numSamples);
   const view = new DataView(buffer);
   const writeString = (offset: number, string: string) => {
     for (let i = 0; i < string.length; i++) {
@@ -17,21 +17,21 @@ const encodeWav16Bit = (samples: Float32Array, sampleRate: number): Blob => {
     }
   };
   writeString(0, "RIFF");
-  view.setUint32(4, 36 + numSamples * 2, true);
+  view.setUint32(4, 36 + numSamples, true);
   writeString(8, "WAVE");
   writeString(12, "fmt ");
   view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
+  view.setUint16(20, 1, true);             // PCM format
+  view.setUint16(22, 1, true);             // mono
+  view.setUint32(24, sampleRate, true);    // sample rate
+  view.setUint32(28, sampleRate, true);     // byte rate
+  view.setUint16(32, 1, true);             // block align (1 byte)
+  view.setUint16(34, 8, true);             // bits per sample (8-bit unsigned)
   writeString(36, "data");
-  view.setUint32(40, numSamples * 2, true);
+  view.setUint32(40, numSamples, true);
   for (let i = 0; i < numSamples; i++) {
     const s = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(44 + i * 2, Math.round(s * 32767), true);
+    view.setUint8(44 + i, Math.round((s * 0.5 + 0.5) * 255));
   }
   return new Blob([buffer], { type: "audio/wav" });
 };
@@ -102,7 +102,7 @@ export const analyzeMeetingVideo = async (
     const chunkDurationSec = chunkSamples.length / targetRate;
     if (chunkDurationSec < MIN_CHUNK_SEC) continue;
 
-    const wavBlob = encodeWav16Bit(chunkSamples, targetRate);
+    const wavBlob = encodeWav8Bit(chunkSamples, targetRate);
 
     try {
       const res = await fetch("/api/transcribe", {

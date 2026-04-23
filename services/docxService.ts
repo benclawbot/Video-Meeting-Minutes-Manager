@@ -35,10 +35,10 @@ const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
       headerBg: "1e293b", // slate-800
       headerText: "FFFFFF",
       rowText: "000000",
-      border: "1e293b",   // bold dark border matching header
-      title: "1e293b",
-      subtitle: "1e293b", // h2 = same dark for readability
-      rowEvenBg: "f1f5f9" // zebra (slate-100)
+      border: "1e293b",
+      title: "2563eb", // blue-600 — distinctive title
+      subtitle: "1e293b",
+      rowEvenBg: "f1f5f9"
     },
     borders: { style: BorderStyle.SINGLE, size: 6, color: "1e293b" },
     headerTransform: 'uppercase'
@@ -50,11 +50,11 @@ const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
     colors: {
       headerBg: "0c4a6e", // sky-900
       headerText: "FFFFFF",
-      rowText: "0f172a",   // near-black for readability
-      border: "0c4a6e",   // bold border matching header
-      title: "0ea5e9",
-      subtitle: "0c4a6e",  // h2 = dark for readability
-      rowEvenBg: "f0f9ff"  // zebra (sky-50)
+      rowText: "0f172a",
+      border: "0c4a6e",
+      title: "0284c7", // sky-600
+      subtitle: "0369a1", // sky-700 — better contrast for h2
+      rowEvenBg: "f0f9ff"
     },
     borders: { style: BorderStyle.SINGLE, size: 6, color: "0c4a6e" },
     headerTransform: 'none'
@@ -64,13 +64,13 @@ const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
     name: 'Classic Executive',
     fonts: { body: "Calibri", heading: "Calibri" },
     colors: {
-      headerBg: "1e3a5f", // bleu marine
+      headerBg: "1e3a5f", // navy
       headerText: "FFFFFF",
       rowText: "000000",
-      border: "1e3a5f",  // bold border matching header
+      border: "1e3a5f",
       title: "1e3a5f",
-      subtitle: "1e3a5f", // h2 = same dark for readability
-      rowEvenBg: "f0f4f8" // zebra
+      subtitle: "1e3a5f",
+      rowEvenBg: "f0f4f8"
     },
     borders: { style: BorderStyle.SINGLE, size: 6, color: "1e3a5f" },
     headerTransform: 'uppercase'
@@ -227,16 +227,21 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
         spacing: { before: 240, after: 120 } 
       }));
     } else if (lineTrimmed.startsWith('## ')) {
-      elements.push(new Paragraph({ 
-        children: renderFormattedText(lineTrimmed.replace('## ', ''), style.fonts.heading, style.colors.subtitle, 28, true),
-        spacing: { before: 400, after: 200 },
-        border: { bottom: { color: style.colors.border, space: 4, style: BorderStyle.SINGLE, size: 4 } }
+      elements.push(new Paragraph({
+        children: renderFormattedText(lineTrimmed.replace('## ', ''), style.fonts.heading, style.colors.subtitle, 26, true),
+        spacing: { before: 360, after: 160 },
+        border: {
+          bottom: { color: style.colors.subtitle, space: 4, style: BorderStyle.SINGLE, size: 6 }
+        }
       }));
     } else if (lineTrimmed.startsWith('# ')) {
       elements.push(new Paragraph({
-        children: renderFormattedText(lineTrimmed.replace('# ', ''), style.fonts.heading, style.colors.title, 36, true),
-        spacing: { before: 400, after: 400 },
-        alignment: AlignmentType.CENTER
+        children: renderFormattedText(lineTrimmed.replace('# ', ''), style.fonts.heading, style.colors.title, 40, true),
+        spacing: { before: 200, after: 200 },
+        alignment: AlignmentType.CENTER,
+        border: {
+          bottom: { color: style.colors.title, space: 8, style: BorderStyle.THICK, size: 12 }
+        }
       }));
     } 
     // Lists

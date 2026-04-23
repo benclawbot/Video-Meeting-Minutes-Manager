@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const MINIMAX_BASE_URL = 'https://api.minimaxi.chat/v';
+const MINIMAX_BASE_URL = 'https://api.minimaxi.chat/v1';
 const MINIMAX_MODEL = 'minimax-m2.5';
 
 interface AnalyzeBody {
@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const minimaxKey = process.env.MINIMAX_API_KEY;
+  const minimaxKey = process.env.VITE_MINIMAX_API_KEY;
   if (!minimaxKey) {
     return res.status(500).json({ error: 'Clé API MiniMax manquante.' });
   }
@@ -101,6 +101,51 @@ Réponds maintenant avec le compte rendu en français uniquement :
 
     if (!text?.trim()) {
       return res.status(500).json({ error: 'Aucun contenu généré.' });
+    }
+
+    // ── Step 5: Language quality review ─────────────────────────────────────────
+    const reviewPrompt = `Tu es un correcteur linguistique professionnel français. Vérifie le compte rendu ci-dessous pour les problèmes suivants :
+1. Mots ou phrases en anglais残留 (même isolés)
+2. Mélanges de langues (français + anglais)
+3. Phrases incomplètes ou incohérentes
+4. Caractères non-latins résiduels
+
+Réponds UNIQUEMENT par un tableau Markdown de ce type :
+| Ligne | Problème | Proposition de correction |
+| :--- | :--- | :--- |
+| 3 | "meeting" en anglais | "réunion" |
+| 7 | phrase incomplète | "ajouter la fin de la phrase" |
+
+Si AUCUN problème, réponds uniquement par :
+|OK|
+
+Compte rendu à vérifier :
+${text}`.trim();
+
+    try {
+      const reviewRes = await fetch(`${MINIMAX_BASE_URL}/text/chatcompletion_v2`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${minimaxKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: MINIMAX_MODEL,
+          messages: [{ role: 'user', content: reviewPrompt }],
+          max_tokens: 1024,
+        }),
+      });
+
+      if (reviewRes.ok) {
+        const reviewData = await reviewRes.json() as { choices?: Array<{ message?: { content?: string } }> };
+        const reviewText = reviewData.choices?.[0]?.message?.content || '';
+
+        if (!reviewText.includes('|OK|')) {
+          text = text + '\n\n---\n**⚠️ Vérification linguistique**\n' + reviewText;
+        }
+      }
+    } catch {
+      // Non-blocking — don't fail generation if review fails
     }
 
     return res.status(200).json({ minutes: text });
