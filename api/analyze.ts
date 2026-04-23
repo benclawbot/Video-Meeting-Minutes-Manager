@@ -103,27 +103,20 @@ Réponds maintenant avec le compte rendu en français uniquement :
       return res.status(500).json({ error: 'Aucun contenu généré.' });
     }
 
-    // ── Step 5: Language quality review ─────────────────────────────────────────
-    const reviewPrompt = `Tu es un correcteur linguistique professionnel français. Vérifie le compte rendu ci-dessous pour les problèmes suivants :
-1. Mots ou phrases en anglais残留 (même isolés)
-2. Mélanges de langues (français + anglais)
-3. Phrases incomplètes ou incohérentes
-4. Caractères non-latins résiduels
+    // ── Step 5: Language quality fix ───────────────────────────────────────────
+    const fixPrompt = `Tu es un correcteur linguistique professionnel français. Corrige le compte rendu ci-dessous en :
+1. Remplaçant tous les mots ou phrases en anglais par leur équivalent français
+2. Corrigeant tout mélange de langues
+3. Corrigeant les phrases incomplètes ou incohérentes
+4. Supprimant tout caractère non-latin résiduel
 
-Réponds UNIQUEMENT par un tableau Markdown de ce type :
-| Ligne | Problème | Proposition de correction |
-| :--- | :--- | :--- |
-| 3 | "meeting" en anglais | "réunion" |
-| 7 | phrase incomplète | "ajouter la fin de la phrase" |
+Réponds UNIQUEMENT par le compte rendu corrigé en français pur — sans explication, sans note, sans tableau.
 
-Si AUCUN problème, réponds uniquement par :
-|OK|
-
-Compte rendu à vérifier :
+Compte rendu à corriger :
 ${text}`.trim();
 
     try {
-      const reviewRes = await fetch(`${MINIMAX_BASE_URL}/text/chatcompletion_v2`, {
+      const fixRes = await fetch(`${MINIMAX_BASE_URL}/text/chatcompletion_v2`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${minimaxKey}`,
@@ -131,21 +124,21 @@ ${text}`.trim();
         },
         body: JSON.stringify({
           model: MINIMAX_MODEL,
-          messages: [{ role: 'user', content: reviewPrompt }],
-          max_tokens: 1024,
+          messages: [{ role: 'user', content: fixPrompt }],
+          max_tokens: 4096,
         }),
       });
 
-      if (reviewRes.ok) {
-        const reviewData = await reviewRes.json() as { choices?: Array<{ message?: { content?: string } }> };
-        const reviewText = reviewData.choices?.[0]?.message?.content || '';
-
-        if (!reviewText.includes('|OK|')) {
-          text = text + '\n\n---\n**⚠️ Vérification linguistique**\n' + reviewText;
+      if (fixRes.ok) {
+        const fixData = await fixRes.json() as { choices?: Array<{ message?: { content?: string } }> };
+        const fixed = fixData.choices?.[0]?.message?.content?.trim() || '';
+        // Only accept if it looks like a real corrected document (starts with #)
+        if (fixed.startsWith('#') && fixed.length > text.length * 0.5) {
+          text = fixed;
         }
       }
     } catch {
-      // Non-blocking — don't fail generation if review fails
+      // Non-blocking — keep original if review fails
     }
 
     return res.status(200).json({ minutes: text });
