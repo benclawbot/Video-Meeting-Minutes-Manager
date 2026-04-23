@@ -16,7 +16,7 @@ const MIN_CHUNK_SEC = 0.01;         // Groq minimum (0.01s)
 
 // ─── Groq Rate Limiting ──────────────────────────────────────────────────────
 const GROQ_MAX_RETRIES = 3;        // Retry count for rate-limited requests
-const GROQ_RETRY_DELAY_MS = 5000;  // Base delay between retries on 429
+const GROQ_RETRY_DELAY_MS = 30000;  // 30s between retries on 429
 
 // ─── Audio Utilities ──────────────────────────────────────────────────────────
 
@@ -221,13 +221,27 @@ export const analyzeMeetingVideo = async (
         attempt++;
         const msg = err?.message || "";
         if (msg.includes("429") && attempt <= GROQ_MAX_RETRIES) {
-          // Rate limited — wait and retry
-          await new Promise(r => setTimeout(r, GROQ_RETRY_DELAY_MS * attempt));
+          // Parse Groq "retry after" hint — e.g. "Please try again in 1m54s"
+          const retryMatch = msg.match(/try again in ([\d.]+)([ms]?)[\s.]/);
+          if (retryMatch) {
+            const value = parseFloat(retryMatch[1]);
+            const unit = retryMatch[2];
+            const waitMs = unit === "s" || unit === "" ? value * 1000 : value;
+            await new Promise(r => setTimeout(r, Math.ceil(waitMs / 1000) * 1000 + 1000));
+          } else {
+            // Fallback exponential backoff starting at 30s
+            await new Promise(r => setTimeout(r, GROQ_RETRY_DELAY_MS * attempt));
+          }
         } else {
           console.warn(`Chunk ${idx + 1} failed after ${attempt} attempt(s):`, msg);
           break;
         }
       }
+    }
+
+    // Small delay between chunks to avoid burst rate-limiting
+    if (idx < totalChunks - 1) {
+      await new Promise(r => setTimeout(r, 200));
     }
   }
 
@@ -284,11 +298,23 @@ Réponds maintenant avec le compte rendu en français uniquement :
     .replace(/^```\s*/i, "")
     .replace(/```$/i, "");
 
-  // Strip MiniMax thinking preamble — jump to first H1 heading
-  const firstHeadingMatch = text.match(/^#\s+\S/im);
-  if (firstHeadingMatch) {
-    text = text.substring(text.indexOf(firstHeadingMatch[0]));
+  // Strip MiniMax thinking preamble — jump to first H1 heading (case-insensitive, multiline)
+  const firstH1Match = text.match(/^#\s+(?=Compte Rendu)/im);
+  if (firstH1Match) {
+    text = text.substring(text.indexOf(firstH1Match[0]));
   }
+
+  // Remove thinking blocks: ## <anything> followed by "Je dois" / "Ignore" / instructifs → ## ... ]]> ... ]]>
+  // These appear as ## headings within the thinking phase before the real content starts
+  text = text
+    // Remove "## Actions à Entreprendre avec le tableau" style heading + thinking until ]]>
+    .replace(/^##\s+Actions [àa] Entreprendre[^\n]*\n[\s\S]*?\]>\$\n+/g, "")
+    // Remove standalone "Je dois ignorer..." instruction lines
+    .replace(/^Je\s+(dois|peux|pourrais|vais)[^\n]*\n*/gim, "")
+    // Remove lines that look like self-referential model instructions in French
+    .replace(/^(Je|tu|nous|vous|Il import).{0,60}$/gim, "")
+    // Strip XML-style thinking tags and everything between them
+    .replace(/\]\s*\]>\$\s*/g, "");
 
   // Remove English-only lines and numbered instruction lines that leaked through
   text = text
