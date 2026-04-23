@@ -17,13 +17,19 @@ interface TemplateStyle {
     title: string;
     subtitle: string;
     rowEvenBg: string;
+    accent: string;
+    accentLight: string;
+    bodyText: string;
+    listBullet: string;
   };
   borders: {
     style: any;
     size: number;
-    color?: string; // override if specific
+    color?: string;
   };
   headerTransform: 'uppercase' | 'capitalize' | 'none';
+  listBulletFont: boolean;
+  sectionHeaderBar: boolean;
 }
 
 const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
@@ -32,48 +38,66 @@ const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
     name: 'Corporate',
     fonts: { body: "Calibri", heading: "Calibri" },
     colors: {
-      headerBg: "1e293b", // slate-800
+      headerBg: "1e3a8a",   // deep royal blue
       headerText: "FFFFFF",
-      rowText: "000000",
-      border: "1e293b",
-      title: "2563eb", // blue-600 — distinctive title
-      subtitle: "1e293b",
-      rowEvenBg: "f1f5f9"
+      rowText: "1e293b",
+      border: "1e3a8a",
+      title: "1e3a8a",
+      subtitle: "3b82f6",    // bright blue section headers
+      rowEvenBg: "eff6ff",  // blue-50
+      accent: "3b82f6",
+      accentLight: "dbeafe",// blue-100
+      bodyText: "334155",    // slate-700
+      listBullet: "3b82f6"
     },
-    borders: { style: BorderStyle.SINGLE, size: 6, color: "1e293b" },
-    headerTransform: 'uppercase'
+    borders: { style: BorderStyle.SINGLE, size: 6, color: "1e3a8a" },
+    headerTransform: 'uppercase',
+    listBulletFont: true,
+    sectionHeaderBar: true
   },
   modern: {
     id: 'modern',
     name: 'Modern',
     fonts: { body: "Segoe UI", heading: "Segoe UI" },
     colors: {
-      headerBg: "0c4a6e", // sky-900
+      headerBg: "064e3b",   // emerald-900
       headerText: "FFFFFF",
-      rowText: "0f172a",
-      border: "0c4a6e",
-      title: "0284c7", // sky-600
-      subtitle: "0369a1", // sky-700 — better contrast for h2
-      rowEvenBg: "f0f9ff"
+      rowText: "064e3b",
+      border: "059669",
+      title: "059669",      // emerald-600
+      subtitle: "10b981",   // emerald-500
+      rowEvenBg: "ecfdf5",  // emerald-50
+      accent: "059669",
+      accentLight: "d1fae5",// emerald-100
+      bodyText: "065f46",   // emerald-800
+      listBullet: "10b981"
     },
-    borders: { style: BorderStyle.SINGLE, size: 6, color: "0c4a6e" },
-    headerTransform: 'none'
+    borders: { style: BorderStyle.SINGLE, size: 6, color: "059669" },
+    headerTransform: 'none',
+    listBulletFont: false,
+    sectionHeaderBar: true
   },
   executive: {
     id: 'executive',
     name: 'Classic Executive',
-    fonts: { body: "Calibri", heading: "Calibri" },
+    fonts: { body: "Georgia", heading: "Georgia" },
     colors: {
-      headerBg: "1e3a5f", // navy
+      headerBg: "7c2d12",   // deep burnt sienna / burgundy-brown
       headerText: "FFFFFF",
-      rowText: "000000",
-      border: "1e3a5f",
-      title: "1e3a5f",
-      subtitle: "1e3a5f",
-      rowEvenBg: "f0f4f8"
+      rowText: "292524",
+      border: "7c2d12",
+      title: "7c2d12",
+      subtitle: "92400e",   // warm amber-brown
+      rowEvenBg: "fff7ed",  // orange-50
+      accent: "b45309",    // amber-700
+      accentLight: "fef3c7",// amber-100
+      bodyText: "44403c",   // stone-700
+      listBullet: "92400e"
     },
-    borders: { style: BorderStyle.SINGLE, size: 6, color: "1e3a5f" },
-    headerTransform: 'uppercase'
+    borders: { style: BorderStyle.SINGLE, size: 6, color: "7c2d12" },
+    headerTransform: 'uppercase',
+    listBulletFont: false,
+    sectionHeaderBar: true
   }
 };
 
@@ -185,11 +209,8 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
 
       while (i < lines.length && lines[i].trim().includes('|')) {
         const cells = parseCells(lines[i]);
-        // Skip separator rows (|---|---|) — they have all-empty cells
         if (cells.length > 0 && cells.some(c => c.trim() !== '')) {
-          const rowIdx = rows.length; // 0 = header already pushed, 1 = first data row
-          // First data row gets zebra shading (matches web renderer)
-          const isEven = rowIdx % 2 === 0;
+          const rowIdx = rows.length;
           rows.push(new TableRow({
             children: cells.map(cell => new TableCell({
               children: [new Paragraph({
@@ -197,7 +218,7 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
                 alignment: AlignmentType.LEFT,
                 spacing: { before: 100, after: 100 }
               })],
-              // Plain white cells, no alternating shading
+              shading: rowIdx % 2 === 0 ? { fill: style.colors.rowEvenBg, type: ShadingType.SOLID } : undefined,
               borders: {
                 top: tableBorderStyle,
                 bottom: tableBorderStyle,
@@ -231,7 +252,8 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
         children: renderFormattedText(lineTrimmed.replace('## ', ''), style.fonts.heading, style.colors.subtitle, 26, true),
         spacing: { before: 360, after: 160 },
         border: {
-          bottom: { color: style.colors.subtitle, space: 4, style: BorderStyle.SINGLE, size: 6 }
+          bottom: { color: style.colors.subtitle, space: 4, style: BorderStyle.SINGLE, size: 6 },
+          left: { color: style.colors.accent, space: 4, style: BorderStyle.THICK, size: 18 }
         }
       }));
     } else if (lineTrimmed.startsWith('# ')) {
@@ -244,20 +266,20 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
         }
       }));
     } 
-    // Lists
+    // List items with colored bullet
     else if (lineTrimmed.startsWith('- ') || lineTrimmed.startsWith('* ')) {
       const leadingSpaces = lineRaw.match(/^\s*/)?.[0].length || 0;
       const level = Math.floor(leadingSpaces / 2);
-      elements.push(new Paragraph({ 
-        children: renderFormattedText(lineTrimmed.substring(2), style.fonts.body, style.colors.rowText, 22, false), 
+      elements.push(new Paragraph({
+        children: renderFormattedText(lineTrimmed.substring(2), style.fonts.body, style.colors.bodyText, 22, false),
         bullet: { level },
         indent: { left: 720 * (level + 1), hanging: 360 },
-        spacing: { after: 120 } 
+        spacing: { after: 120 }
       }));
     } 
     else {
-      elements.push(new Paragraph({ 
-        children: renderFormattedText(lineTrimmed, style.fonts.body, style.colors.rowText, 22, false), 
+      elements.push(new Paragraph({
+        children: renderFormattedText(lineTrimmed, style.fonts.body, style.colors.bodyText, 22, false),
         spacing: { after: 200 },
         alignment: AlignmentType.JUSTIFIED
       }));
