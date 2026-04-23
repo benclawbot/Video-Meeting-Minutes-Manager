@@ -1,16 +1,11 @@
 import React from 'react';
 import { DocxTemplateId } from '../types';
-import { TEMPLATE_COLORS } from '../services/docxColors';
+import { TEMPLATE_COLORS, TemplateColors } from '../services/docxColors';
 
 interface MarkdownRendererProps {
   content: string;
   template: DocxTemplateId;
 }
-
-const toTailwind = (hex: string) => {
-  // Convert hex to Tailwind class approximations — these map to our theme palette
-  return hex;
-};
 
 const hexToStyle = (hex: string): React.CSSProperties => ({
   color: `#${hex}`,
@@ -37,11 +32,11 @@ const THEMES: Record<DocxTemplateId, {
     trEven: string;
     td: string;
   };
-  styles: ReturnType<typeof TEMPLATE_COLORS.corporate>;
+  styles: TemplateColors;
 }> = {
   corporate: {
     page: "bg-white shadow-xl w-full max-w-[21cm] mx-auto p-12 min-h-[29.7cm] font-sans",
-    h1: "text-3xl font-bold mb-8 pb-4 text-center border-b-2",
+    h1: "text-4xl font-bold mb-8 pb-4 text-center border-b-2",
     h2: "text-xl font-bold mt-8 mb-4 uppercase tracking-wide pb-1 border-b",
     h3: "text-lg font-semibold mt-6 mb-3",
     p: "mb-4 leading-relaxed text-justify",
@@ -59,7 +54,7 @@ const THEMES: Record<DocxTemplateId, {
     styles: TEMPLATE_COLORS.corporate,
   },
   modern: {
-    page: "bg-white shadow-2xl w-full max-w-[21cm] mx-auto p-12 min-h-[29.7cm] font-sans",
+    page: "bg-[#F8FDFB] shadow-2xl w-full max-w-[21cm] mx-auto p-12 min-h-[29.7cm] font-sans",
     h1: "text-4xl font-bold mb-10 tracking-tight text-center",
     h2: "text-2xl font-bold mt-10 mb-4 flex items-center",
     h3: "text-lg font-semibold mt-6 mb-2",
@@ -69,7 +64,7 @@ const THEMES: Record<DocxTemplateId, {
       container: "my-8 rounded-lg overflow-hidden shadow-lg",
       table: "w-full text-left text-sm",
       thead: "text-white",
-      th: "px-6 py-3 text-xs font-bold uppercase tracking-wider",
+      th: "px-6 py-3 text-xs font-bold tracking-wider",
       tbody: "bg-white",
       tr: "border-b last:border-0",
       trEven: "",
@@ -78,8 +73,8 @@ const THEMES: Record<DocxTemplateId, {
     styles: TEMPLATE_COLORS.modern,
   },
   executive: {
-    page: "bg-white shadow-2xl w-full max-w-[21cm] mx-auto p-12 min-h-[29.7cm] font-sans",
-    h1: "text-3xl font-extrabold mb-8 pb-4 text-center border-b-2",
+    page: "bg-[#FAFAF8] shadow-2xl w-full max-w-[21cm] mx-auto p-12 min-h-[29.7cm] font-serif",
+    h1: "text-4xl font-extrabold mb-8 pb-4 text-center border-b-2",
     h2: "text-xl font-bold mt-8 mb-4 uppercase tracking-wide pb-1 border-b",
     h3: "text-lg font-semibold mt-6 mb-2",
     p: "mb-4 leading-relaxed text-justify",
@@ -99,9 +94,9 @@ const THEMES: Record<DocxTemplateId, {
 };
 
 const BULLET_STYLES: Record<DocxTemplateId, React.CSSProperties> = {
-  corporate: { color: `#${TEMPLATE_COLORS.corporate.accent}` },
+  corporate: { backgroundColor: `#${TEMPLATE_COLORS.corporate.accent}` },
   modern: { backgroundColor: `#${TEMPLATE_COLORS.modern.accent}` },
-  executive: { color: `#${TEMPLATE_COLORS.executive.listBullet}` },
+  executive: { backgroundColor: `#${TEMPLATE_COLORS.executive.accent}` },
 };
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, template }) => {

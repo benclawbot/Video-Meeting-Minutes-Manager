@@ -1,9 +1,9 @@
-import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType, VerticalAlign } from "docx";
+import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType, VerticalAlign, LevelFormat, Numbering, Header, Footer, PageSize, PageOrientation } from "docx";
 import FileSaver from "file-saver";
 import { AnalysisResult, MeetingDetails, DocxTemplateId } from "../types";
 import { TEMPLATE_COLORS, TemplateColors } from "./docxColors";
 
-const CELL_MARGINS = { top: 140, bottom: 140, left: 140, right: 140 };
+const CELL_MARGINS = { top: 140, bottom: 140, left: 180, right: 180 };
 
 interface DocxStyle extends TemplateColors {
   fonts: { body: string; heading: string };
@@ -11,32 +11,36 @@ interface DocxStyle extends TemplateColors {
   headerTransform: "uppercase" | "capitalize" | "none";
   listBulletFont: boolean;
   sectionHeaderBar: boolean;
+  fontSize: { body: number; h1: number; h2: number; h3: number };
 }
 
 const DOCX_TEMPLATES: Record<DocxTemplateId, DocxStyle> = {
   corporate: {
     ...TEMPLATE_COLORS.corporate,
     fonts: { body: "Calibri", heading: "Calibri" },
-    borders: { style: BorderStyle.SINGLE, size: 6, color: "1e3a8a" },
+    borders: { style: BorderStyle.SINGLE, size: 6, color: "1e3a5f" },
     headerTransform: "uppercase",
     listBulletFont: true,
     sectionHeaderBar: true,
+    fontSize: { body: 22, h1: 40, h2: 26, h3: 24 },
   },
   modern: {
     ...TEMPLATE_COLORS.modern,
     fonts: { body: "Segoe UI", heading: "Segoe UI" },
-    borders: { style: BorderStyle.SINGLE, size: 6, color: "059669" },
+    borders: { style: BorderStyle.SINGLE, size: 6, color: "0f4c5c" },
     headerTransform: "none",
     listBulletFont: false,
     sectionHeaderBar: true,
+    fontSize: { body: 22, h1: 40, h2: 28, h3: 24 },
   },
   executive: {
     ...TEMPLATE_COLORS.executive,
     fonts: { body: "Georgia", heading: "Georgia" },
-    borders: { style: BorderStyle.SINGLE, size: 6, color: "7c2d12" },
+    borders: { style: BorderStyle.SINGLE, size: 6, color: "292524" },
     headerTransform: "uppercase",
     listBulletFont: false,
     sectionHeaderBar: true,
+    fontSize: { body: 22, h1: 44, h2: 26, h3: 24 },
   },
 };
 
@@ -60,7 +64,7 @@ const renderFormattedText = (text: string, font: string, color: string, size: nu
 const parseMarkdownToDocxElements = (text: string, style: DocxStyle) => {
   const contentOnly = text.split(/##\s*Transcription Résumée/i)[0];
   const lines = contentOnly.split("\n");
-  const elements: ReturnType<typeof Paragraph>[] = [];
+  const elements: (Paragraph | Table)[] = [];
   let i = 0;
 
   const tableBorder = { style: style.borders.style, size: style.borders.size, color: style.borders.color || style.border };
@@ -82,7 +86,7 @@ const parseMarkdownToDocxElements = (text: string, style: DocxStyle) => {
     const isSeparator = nextLine.includes("|") && nextLine.includes("---");
 
     if (hasPipes && isSeparator) {
-      const rows: ReturnType<typeof TableRow>[] = [];
+      const rows: TableRow[] = [];
       const headerCells = parseCells(lineTrimmed);
 
       rows.push(new TableRow({
@@ -96,7 +100,7 @@ const parseMarkdownToDocxElements = (text: string, style: DocxStyle) => {
               children: renderFormattedText(cellText, style.fonts.body, style.headerText, 20, true),
               alignment: AlignmentType.CENTER, spacing: { before: 100, after: 100 },
             })],
-            shading: { fill: style.headerBg, type: ShadingType.SOLID },
+            shading: { fill: style.headerBg, type: ShadingType.CLEAR },
             borders: { top: tableBorder, bottom: tableBorder, left: tableBorder, right: tableBorder },
             margins: CELL_MARGINS,
             verticalAlign: VerticalAlign.CENTER,
@@ -115,28 +119,33 @@ const parseMarkdownToDocxElements = (text: string, style: DocxStyle) => {
                 children: renderFormattedText(cell, style.fonts.body, style.rowText, 22),
                 alignment: AlignmentType.LEFT, spacing: { before: 100, after: 100 },
               })],
-              shading: rowIdx % 2 === 0 ? { fill: style.rowEvenBg, type: ShadingType.SOLID } : undefined,
+              shading: rowIdx % 2 === 0 ? { fill: style.rowEvenBg, type: ShadingType.CLEAR } : undefined,
               borders: { top: tableBorder, bottom: tableBorder, left: tableBorder, right: tableBorder },
               margins: CELL_MARGINS,
               verticalAlign: VerticalAlign.TOP,
+              width: { size: 0, type: WidthType.DXA },
             })),
           }));
         }
         i++;
       }
 
-      elements.push(new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE }, margins: { top: 400, bottom: 400 } }));
+      elements.push(new Table({
+        rows,
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        margins: { top: 400, bottom: 400 },
+      }));
       continue;
     }
 
     if (lineTrimmed.startsWith("### ")) {
       elements.push(new Paragraph({
-        children: renderFormattedText(lineTrimmed.replace("### ", ""), style.fonts.heading, style.subtitle, 24, true),
+        children: renderFormattedText(lineTrimmed.replace("### ", ""), style.fonts.heading, style.subtitle, style.fontSize.h3, true),
         spacing: { before: 240, after: 120 },
       }));
     } else if (lineTrimmed.startsWith("## ")) {
       elements.push(new Paragraph({
-        children: renderFormattedText(lineTrimmed.replace("## ", ""), style.fonts.heading, style.subtitle, 26, true),
+        children: renderFormattedText(lineTrimmed.replace("## ", ""), style.fonts.heading, style.subtitle, style.fontSize.h2, true),
         spacing: { before: 360, after: 160 },
         border: {
           bottom: { color: style.subtitle, space: 4, style: BorderStyle.SINGLE, size: 6 },
@@ -145,7 +154,7 @@ const parseMarkdownToDocxElements = (text: string, style: DocxStyle) => {
       }));
     } else if (lineTrimmed.startsWith("# ")) {
       elements.push(new Paragraph({
-        children: renderFormattedText(lineTrimmed.replace("# ", ""), style.fonts.heading, style.title, 40, true),
+        children: renderFormattedText(lineTrimmed.replace("# ", ""), style.fonts.heading, style.title, style.fontSize.h1, true),
         spacing: { before: 200, after: 200 },
         alignment: AlignmentType.CENTER,
         border: { bottom: { color: style.title, space: 8, style: BorderStyle.THICK, size: 12 } },
