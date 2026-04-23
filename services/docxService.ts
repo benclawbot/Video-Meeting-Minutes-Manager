@@ -197,7 +197,7 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
                 alignment: AlignmentType.LEFT,
                 spacing: { before: 100, after: 100 }
               })],
-              shading: isEven ? { fill: style.colors.rowEvenBg, type: ShadingType.SOLID } : undefined,
+              // Plain white cells, no alternating shading
               borders: {
                 top: tableBorderStyle,
                 bottom: tableBorderStyle,
@@ -233,10 +233,13 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
         border: { bottom: { color: style.colors.border, space: 4, style: BorderStyle.SINGLE, size: 4 } }
       }));
     } else if (lineTrimmed.startsWith('# ')) {
-      elements.push(new Paragraph({ 
-        children: renderFormattedText(lineTrimmed.replace('# ', ''), style.fonts.heading, style.colors.title, 36, true),
-        spacing: { before: 400, after: 400 },
-        alignment: AlignmentType.CENTER
+      const titleText = lineTrimmed.replace('# ', '');
+      // Title banner: white text on titleColor background
+      elements.push(new Paragraph({
+        children: renderFormattedText(titleText, style.fonts.heading, "FFFFFF", 36, true),
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 200, after: 200 },
+        shading: { fill: style.colors.title, type: ShadingType.SOLID }
       }));
     } 
     // Lists
