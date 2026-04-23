@@ -1,287 +1,168 @@
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType, VerticalAlign } from "docx";
+import { Document, Packer, Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell, WidthType, BorderStyle, ShadingType, VerticalAlign } from "docx";
 import FileSaver from "file-saver";
 import { AnalysisResult, MeetingDetails, DocxTemplateId } from "../types";
+import { TEMPLATE_COLORS, TemplateColors } from "./docxColors";
 
-interface TemplateStyle {
-  id: DocxTemplateId;
-  name: string;
-  fonts: {
-    body: string;
-    heading: string;
-  };
-  colors: {
-    headerBg: string;
-    headerText: string;
-    rowText: string;
-    border: string;
-    title: string;
-    subtitle: string;
-    rowEvenBg: string;
-    accent: string;
-    accentLight: string;
-    bodyText: string;
-    listBullet: string;
-  };
-  borders: {
-    style: any;
-    size: number;
-    color?: string;
-  };
-  headerTransform: 'uppercase' | 'capitalize' | 'none';
+const CELL_MARGINS = { top: 140, bottom: 140, left: 140, right: 140 };
+
+interface DocxStyle extends TemplateColors {
+  fonts: { body: string; heading: string };
+  borders: { style: any; size: number; color?: string };
+  headerTransform: "uppercase" | "capitalize" | "none";
   listBulletFont: boolean;
   sectionHeaderBar: boolean;
 }
 
-const TEMPLATES: Record<DocxTemplateId, TemplateStyle> = {
+const DOCX_TEMPLATES: Record<DocxTemplateId, DocxStyle> = {
   corporate: {
-    id: 'corporate',
-    name: 'Corporate',
+    ...TEMPLATE_COLORS.corporate,
     fonts: { body: "Calibri", heading: "Calibri" },
-    colors: {
-      headerBg: "1e3a8a",   // deep royal blue
-      headerText: "FFFFFF",
-      rowText: "1e293b",
-      border: "1e3a8a",
-      title: "1e3a8a",
-      subtitle: "3b82f6",    // bright blue section headers
-      rowEvenBg: "eff6ff",  // blue-50
-      accent: "3b82f6",
-      accentLight: "dbeafe",// blue-100
-      bodyText: "334155",    // slate-700
-      listBullet: "3b82f6"
-    },
     borders: { style: BorderStyle.SINGLE, size: 6, color: "1e3a8a" },
-    headerTransform: 'uppercase',
+    headerTransform: "uppercase",
     listBulletFont: true,
-    sectionHeaderBar: true
+    sectionHeaderBar: true,
   },
   modern: {
-    id: 'modern',
-    name: 'Modern',
+    ...TEMPLATE_COLORS.modern,
     fonts: { body: "Segoe UI", heading: "Segoe UI" },
-    colors: {
-      headerBg: "064e3b",   // emerald-900
-      headerText: "FFFFFF",
-      rowText: "064e3b",
-      border: "059669",
-      title: "059669",      // emerald-600
-      subtitle: "10b981",   // emerald-500
-      rowEvenBg: "ecfdf5",  // emerald-50
-      accent: "059669",
-      accentLight: "d1fae5",// emerald-100
-      bodyText: "065f46",   // emerald-800
-      listBullet: "10b981"
-    },
     borders: { style: BorderStyle.SINGLE, size: 6, color: "059669" },
-    headerTransform: 'none',
+    headerTransform: "none",
     listBulletFont: false,
-    sectionHeaderBar: true
+    sectionHeaderBar: true,
   },
   executive: {
-    id: 'executive',
-    name: 'Classic Executive',
+    ...TEMPLATE_COLORS.executive,
     fonts: { body: "Georgia", heading: "Georgia" },
-    colors: {
-      headerBg: "7c2d12",   // deep burnt sienna / burgundy-brown
-      headerText: "FFFFFF",
-      rowText: "292524",
-      border: "7c2d12",
-      title: "7c2d12",
-      subtitle: "92400e",   // warm amber-brown
-      rowEvenBg: "fff7ed",  // orange-50
-      accent: "b45309",    // amber-700
-      accentLight: "fef3c7",// amber-100
-      bodyText: "44403c",   // stone-700
-      listBullet: "92400e"
-    },
     borders: { style: BorderStyle.SINGLE, size: 6, color: "7c2d12" },
-    headerTransform: 'uppercase',
+    headerTransform: "uppercase",
     listBulletFont: false,
-    sectionHeaderBar: true
-  }
+    sectionHeaderBar: true,
+  },
 };
 
-const CELL_MARGINS = {
-  top: 140,
-  bottom: 140,
-  left: 140,
-  right: 140,
-};
+// ─── Text Renderer ───────────────────────────────────────────────────────────
 
-// Enhanced Text Renderer to handle Markdown formatting (Bold & Italic)
-const renderFormattedText = (text: string, font: string, color: string, size: number, baseBold: boolean = false) => {
-  // Regex to match **bold** or *italic*
-  const regex = /(\*\*.*?\*\*|\*.*?\*)/g;
-  const parts = text.split(regex);
-  
-  return parts.filter(part => part !== '').map((part) => {
-    let content = part;
-    let isBold = baseBold;
-    let isItalic = false;
-
-    if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
-      content = part.substring(2, part.length - 2);
-      isBold = true;
-    } else if (part.startsWith('*') && part.endsWith('*') && part.length >= 2) {
-      content = part.substring(1, part.length - 1);
-      isItalic = true;
+const renderFormattedText = (text: string, font: string, color: string, size: number, baseBold = false) => {
+  const parts = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+  return parts.filter(p => p !== "").map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
+      return new TextRun({ text: part.slice(2, -2), bold: true, size, color, font });
     }
-
-    return new TextRun({ 
-      text: content, 
-      bold: isBold, 
-      italics: isItalic,
-      size: size, 
-      color: color,
-      font: font
-    });
+    if (part.startsWith("*") && part.endsWith("*") && part.length >= 2) {
+      return new TextRun({ text: part.slice(1, -1), italics: true, size, color, font });
+    }
+    return new TextRun({ text: part, bold: baseBold, size, color, font });
   });
 };
 
-const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
-  // Safe split to remove transcript if present
-  const contentOnly = text.split(/##\s*Transcription Résumée/i)[0];
+// ─── Parser ───────────────────────────────────────────────────────────────────
 
-  const lines = contentOnly.split('\n');
-  const elements = [];
+const parseMarkdownToDocxElements = (text: string, style: DocxStyle) => {
+  const contentOnly = text.split(/##\s*Transcription Résumée/i)[0];
+  const lines = contentOnly.split("\n");
+  const elements: ReturnType<typeof Paragraph>[] = [];
   let i = 0;
 
-  const tableBorderStyle = { 
-    style: style.borders.style, 
-    size: style.borders.size, 
-    color: style.borders.color || style.colors.border 
-  };
+  const tableBorder = { style: style.borders.style, size: style.borders.size, color: style.borders.color || style.border };
 
   const parseCells = (row: string) => {
-    let cleanRow = row.trim();
-    if (cleanRow.startsWith('|')) cleanRow = cleanRow.substring(1);
-    if (cleanRow.endsWith('|')) cleanRow = cleanRow.substring(0, cleanRow.length - 1);
-    return cleanRow.split('|').map(c => {
-       // Clean up leading bullets in table cells if present (common LLM artifact)
-       return c.trim().replace(/^[\*\-]\s+/, '');
-    });
+    let r = row.trim();
+    if (r.startsWith("|")) r = r.slice(1);
+    if (r.endsWith("|")) r = r.slice(0, -1);
+    return r.split("|").map(c => c.trim().replace(/^[\*\-]\s+/, ""));
   };
 
   while (i < lines.length) {
     const lineRaw = lines[i];
     const lineTrimmed = lineRaw.trim();
-    if (!lineTrimmed) {
-      i++;
-      continue;
-    }
+    if (!lineTrimmed) { i++; continue; }
 
-    // Table Detection
-    const hasPipes = lineTrimmed.includes('|');
-    const nextLine = lines[i + 1]?.trim() || '';
-    const isSeparator = nextLine.includes('|') && nextLine.includes('---');
+    const hasPipes = lineTrimmed.includes("|");
+    const nextLine = lines[i + 1]?.trim() || "";
+    const isSeparator = nextLine.includes("|") && nextLine.includes("---");
 
     if (hasPipes && isSeparator) {
-      const rows = [];
+      const rows: ReturnType<typeof TableRow>[] = [];
       const headerCells = parseCells(lineTrimmed);
-      
-      rows.push(new TableRow({
-        tableHeader: true, 
-        children: headerCells.map(cell => {
-            let text = cell;
-            if (style.headerTransform === 'uppercase') text = text.toUpperCase();
-            if (style.headerTransform === 'capitalize') text = text.charAt(0).toUpperCase() + text.slice(1);
 
-            return new TableCell({
-            children: [new Paragraph({ 
-                children: renderFormattedText(text, style.fonts.body, style.colors.headerText, 20, true),
-                alignment: AlignmentType.CENTER,
-                spacing: { before: 100, after: 100 }
+      rows.push(new TableRow({
+        tableHeader: true,
+        children: headerCells.map(cell => {
+          let cellText = cell;
+          if (style.headerTransform === "uppercase") cellText = cellText.toUpperCase();
+          if (style.headerTransform === "capitalize") cellText = cellText.charAt(0).toUpperCase() + cellText.slice(1);
+          return new TableCell({
+            children: [new Paragraph({
+              children: renderFormattedText(cellText, style.fonts.body, style.headerText, 20, true),
+              alignment: AlignmentType.CENTER, spacing: { before: 100, after: 100 },
             })],
-            shading: { fill: style.colors.headerBg, type: ShadingType.SOLID },
-            borders: { 
-                top: tableBorderStyle, 
-                bottom: tableBorderStyle, 
-                left: tableBorderStyle, 
-                right: tableBorderStyle 
-            },
+            shading: { fill: style.headerBg, type: ShadingType.SOLID },
+            borders: { top: tableBorder, bottom: tableBorder, left: tableBorder, right: tableBorder },
             margins: CELL_MARGINS,
-            verticalAlign: VerticalAlign.CENTER
-            });
-        })
+            verticalAlign: VerticalAlign.CENTER,
+          });
+        }),
       }));
 
-      i += 2; 
-
-      while (i < lines.length && lines[i].trim().includes('|')) {
+      i += 2;
+      while (i < lines.length && lines[i].trim().includes("|")) {
         const cells = parseCells(lines[i]);
-        if (cells.length > 0 && cells.some(c => c.trim() !== '')) {
+        if (cells.length > 0 && cells.some(c => c.trim() !== "")) {
           const rowIdx = rows.length;
           rows.push(new TableRow({
             children: cells.map(cell => new TableCell({
               children: [new Paragraph({
-                children: renderFormattedText(cell, style.fonts.body, style.colors.rowText, 22),
-                alignment: AlignmentType.LEFT,
-                spacing: { before: 100, after: 100 }
+                children: renderFormattedText(cell, style.fonts.body, style.rowText, 22),
+                alignment: AlignmentType.LEFT, spacing: { before: 100, after: 100 },
               })],
-              shading: rowIdx % 2 === 0 ? { fill: style.colors.rowEvenBg, type: ShadingType.SOLID } : undefined,
-              borders: {
-                top: tableBorderStyle,
-                bottom: tableBorderStyle,
-                left: tableBorderStyle,
-                right: tableBorderStyle
-              },
+              shading: rowIdx % 2 === 0 ? { fill: style.rowEvenBg, type: ShadingType.SOLID } : undefined,
+              borders: { top: tableBorder, bottom: tableBorder, left: tableBorder, right: tableBorder },
               margins: CELL_MARGINS,
-              verticalAlign: VerticalAlign.TOP
-            }))
+              verticalAlign: VerticalAlign.TOP,
+            })),
           }));
         }
         i++;
       }
 
-      elements.push(new Table({
-        rows,
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        margins: { top: 400, bottom: 400 }
-      }));
+      elements.push(new Table({ rows, width: { size: 100, type: WidthType.PERCENTAGE }, margins: { top: 400, bottom: 400 } }));
       continue;
     }
 
-    // Headings & Text
-    if (lineTrimmed.startsWith('### ')) {
-      elements.push(new Paragraph({ 
-        children: renderFormattedText(lineTrimmed.replace('### ', ''), style.fonts.heading, style.colors.subtitle, 24, true),
-        spacing: { before: 240, after: 120 } 
-      }));
-    } else if (lineTrimmed.startsWith('## ')) {
+    if (lineTrimmed.startsWith("### ")) {
       elements.push(new Paragraph({
-        children: renderFormattedText(lineTrimmed.replace('## ', ''), style.fonts.heading, style.colors.subtitle, 26, true),
+        children: renderFormattedText(lineTrimmed.replace("### ", ""), style.fonts.heading, style.subtitle, 24, true),
+        spacing: { before: 240, after: 120 },
+      }));
+    } else if (lineTrimmed.startsWith("## ")) {
+      elements.push(new Paragraph({
+        children: renderFormattedText(lineTrimmed.replace("## ", ""), style.fonts.heading, style.subtitle, 26, true),
         spacing: { before: 360, after: 160 },
         border: {
-          bottom: { color: style.colors.subtitle, space: 4, style: BorderStyle.SINGLE, size: 6 },
-          left: { color: style.colors.accent, space: 4, style: BorderStyle.THICK, size: 18 }
-        }
+          bottom: { color: style.subtitle, space: 4, style: BorderStyle.SINGLE, size: 6 },
+          left: { color: style.accent, space: 4, style: BorderStyle.THICK, size: 18 },
+        },
       }));
-    } else if (lineTrimmed.startsWith('# ')) {
+    } else if (lineTrimmed.startsWith("# ")) {
       elements.push(new Paragraph({
-        children: renderFormattedText(lineTrimmed.replace('# ', ''), style.fonts.heading, style.colors.title, 40, true),
+        children: renderFormattedText(lineTrimmed.replace("# ", ""), style.fonts.heading, style.title, 40, true),
         spacing: { before: 200, after: 200 },
         alignment: AlignmentType.CENTER,
-        border: {
-          bottom: { color: style.colors.title, space: 8, style: BorderStyle.THICK, size: 12 }
-        }
+        border: { bottom: { color: style.title, space: 8, style: BorderStyle.THICK, size: 12 } },
       }));
-    } 
-    // List items with colored bullet
-    else if (lineTrimmed.startsWith('- ') || lineTrimmed.startsWith('* ')) {
-      const leadingSpaces = lineRaw.match(/^\s*/)?.[0].length || 0;
-      const level = Math.floor(leadingSpaces / 2);
+    } else if (lineTrimmed.startsWith("- ") || lineTrimmed.startsWith("* ")) {
+      const level = Math.floor((lineRaw.match(/^\s*/)?.[0].length || 0) / 2);
       elements.push(new Paragraph({
-        children: renderFormattedText(lineTrimmed.substring(2), style.fonts.body, style.colors.bodyText, 22, false),
+        children: renderFormattedText(lineTrimmed.substring(2), style.fonts.body, style.bodyText, 22, false),
         bullet: { level },
         indent: { left: 720 * (level + 1), hanging: 360 },
-        spacing: { after: 120 }
+        spacing: { after: 120 },
       }));
-    } 
-    else {
+    } else {
       elements.push(new Paragraph({
-        children: renderFormattedText(lineTrimmed, style.fonts.body, style.colors.bodyText, 22, false),
+        children: renderFormattedText(lineTrimmed, style.fonts.body, style.bodyText, 22, false),
         spacing: { after: 200 },
-        alignment: AlignmentType.JUSTIFIED
+        alignment: AlignmentType.JUSTIFIED,
       }));
     }
     i++;
@@ -290,28 +171,27 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
   return elements;
 };
 
-export const generateAndDownloadDocx = async (result: AnalysisResult, details: MeetingDetails, templateId: DocxTemplateId = 'corporate') => {
-  const [year, month, day] = details.date.split('-');
-  const formattedDate = `${day}-${month}-${year}`;
-  
-  const safeTitle = details.title.replace(/[\\/:*?"<>|]/g, '_');
-  const filename = `${safeTitle} - ${formattedDate}.docx`;
+// ─── Export ──────────────────────────────────────────────────────────────────
 
-  const style = TEMPLATES[templateId];
+export const generateAndDownloadDocx = async (
+  result: AnalysisResult,
+  details: MeetingDetails,
+  templateId: DocxTemplateId = "corporate"
+) => {
+  const [year, month, day] = details.date.split("-");
+  const formattedDate = `${day}-${month}-${year}`;
+  const safeTitle = details.title.replace(/[\\/:*?"<>|]/g, "_");
+  const filename = `${safeTitle} - ${formattedDate}.docx`;
+  const style = DOCX_TEMPLATES[templateId];
 
   try {
     const doc = new Document({
-      background: { color: "FFFFFF" }, // Always white paper
+      background: { color: "FFFFFF" },
       sections: [{
-        properties: {
-          page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } }
-        },
-        children: [
-          ...parseMarkdownToDocxElements(result.minutes, style)
-        ]
-      }]
+        properties: { page: { margin: { top: 1440, right: 1440, bottom: 1440, left: 1440 } } },
+        children: [...parseMarkdownToDocxElements(result.minutes, style)],
+      }],
     });
-    
     const blob = await Packer.toBlob(doc);
     FileSaver.saveAs(blob, filename);
     return true;
