@@ -233,13 +233,10 @@ const parseMarkdownToDocxElements = (text: string, style: TemplateStyle) => {
         border: { bottom: { color: style.colors.border, space: 4, style: BorderStyle.SINGLE, size: 4 } }
       }));
     } else if (lineTrimmed.startsWith('# ')) {
-      const titleText = lineTrimmed.replace('# ', '');
-      // Title banner: white text on titleColor background
       elements.push(new Paragraph({
-        children: renderFormattedText(titleText, style.fonts.heading, "FFFFFF", 36, true),
-        alignment: AlignmentType.CENTER,
-        spacing: { before: 200, after: 200 },
-        shading: { fill: style.colors.title, type: ShadingType.SOLID }
+        children: renderFormattedText(lineTrimmed.replace('# ', ''), style.fonts.heading, style.colors.title, 36, true),
+        spacing: { before: 400, after: 400 },
+        alignment: AlignmentType.CENTER
       }));
     } 
     // Lists
