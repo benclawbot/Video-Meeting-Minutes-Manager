@@ -104,7 +104,6 @@ const parseMarkdownToDocxElements = (text: string, style: DocxStyle) => {
             borders: { top: tableBorder, bottom: tableBorder, left: tableBorder, right: tableBorder },
             margins: CELL_MARGINS,
             verticalAlign: VerticalAlign.CENTER,
-            width: { size: 0, type: WidthType.DXA },
           });
         }),
       }));
@@ -133,7 +132,7 @@ const parseMarkdownToDocxElements = (text: string, style: DocxStyle) => {
 
       elements.push(new Table({
         rows,
-        width: { size: 100, type: WidthType.DXA },
+        width: { size: 100, type: WidthType.PERCENTAGE },
         margins: { top: 400, bottom: 400 },
       }));
       continue;
