@@ -2,11 +2,11 @@ import OpenAI from "openai";
 import { AnalysisResult } from "../types";
 
 // ─── MiniMax Configuration ────────────────────────────────────────────────────
-const MINIMAX_BASE_URL   = `${window.location.origin}/minimax-api/v1`;
+const MINIMAX_BASE_URL   = "https://api.minimaxi.chat/v";
 const MINIMAX_CHAT_MODEL = "minimax-m2.5";
 
 // ─── Groq Configuration (STT) ─────────────────────────────────────────────────
-const GROQ_BASE_URL  = `${window.location.origin}/groq-api/openai/v1`;
+const GROQ_BASE_URL  = "https://api.groq.com/openai/v1";
 const GROQ_STT_MODEL = "whisper-large-v3";
 
 // ─── Chunk Configuration ──────────────────────────────────────────────────────
