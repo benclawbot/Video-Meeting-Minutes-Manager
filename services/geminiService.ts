@@ -284,17 +284,17 @@ Réponds maintenant avec le compte rendu en français uniquement :
     .replace(/^```\s*/i, "")
     .replace(/```$/i, "");
 
-  // Strip any preamble that precedes the first markdown heading
-  const firstHash = text.indexOf("#");
-  if (firstHash !== -1) {
-    text = text.substring(firstHash);
+  // Strip MiniMax thinking preamble — jump to first H1 heading
+  const firstHeadingMatch = text.match(/^#\s+\S/im);
+  if (firstHeadingMatch) {
+    text = text.substring(text.indexOf(firstHeadingMatch[0]));
   }
 
   // Remove English-only lines and numbered instruction lines that leaked through
   text = text
     // Remove lines that are purely English sentences at the top
     .replace(/^(Important notes from the transcript|Meeting date|Participants mention|Current status|Budget|Reporting progress|Risk assessment|Technical milestones|Financial overview).*$/gim, "")
-    // Remove the numbered format instruction block (simple approach)
+    // Remove the numbered format instruction block
     .replace(/\d+\.\s*##?\s*(Compte Rendu|Synthèse|Points Clés|Décisions|Action|Key Points|Decisions).*/gi, "")
     // Remove lines that start with English words as standalone sentences
     .replace(/^(I will|Let me|Here's the|Here is the|This transcript|This meeting|In this session).*$/gim, "")
