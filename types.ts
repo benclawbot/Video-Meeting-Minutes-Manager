@@ -3,9 +3,18 @@ export interface MeetingDetails {
   date: string;
 }
 
+export interface UsageMetrics {
+  audioSeconds: number;
+  charCount: number;
+  segmentCount: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
 export interface AnalysisResult {
   minutes: string;
   languageIssues?: string[];
+  usage?: UsageMetrics;
 }
 
 export enum AnalysisStatus {

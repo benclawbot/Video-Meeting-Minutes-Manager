@@ -71,6 +71,7 @@ export const analyzeMeetingVideo = async (
 
   const sampleRate = audioBuffer.sampleRate;
   const samples = audioBuffer.getChannelData(0);
+  const audioSeconds = audioBuffer.duration;
 
   // ── Step 2: Resample to TARGET_RATE ─────────────────────────────────────────
   if (onStatusChange) onStatusChange("PROCESSING");
@@ -93,6 +94,7 @@ export const analyzeMeetingVideo = async (
   const totalChunks = Math.ceil(totalSamples / samplesPerChunk);
 
   const transcriptionParts: string[] = [];
+  let totalCharCount = 0;
 
   for (let idx = 0; idx < totalChunks; idx++) {
     const startSample = idx * samplesPerChunk;
@@ -118,6 +120,7 @@ export const analyzeMeetingVideo = async (
       const data = await res.json() as { text?: string };
       if (data.text?.trim()) {
         transcriptionParts.push(data.text.trim());
+        totalCharCount += data.text.trim().length;
       }
     } catch (err: any) {
       throw new Error("Erreur de transcription : " + (err?.message || "inconnue"));
@@ -137,6 +140,7 @@ export const analyzeMeetingVideo = async (
   if (onStatusChange) onStatusChange("PROCESSING");
 
   let text: string;
+  let apiUsage: { input_tokens?: number; output_tokens?: number } = {};
   try {
     const res = await fetch("/api/analyze", {
       method: "POST",
@@ -149,13 +153,23 @@ export const analyzeMeetingVideo = async (
       throw new Error(err.error || "Erreur de génération");
     }
 
-    const data = await res.json() as { minutes?: string };
+    const data = await res.json() as { minutes?: string; usage?: { input_tokens?: number; output_tokens?: number } };
     text = data.minutes || "";
+    apiUsage = data.usage || {};
   } catch (err: any) {
     throw new Error("Erreur de génération : " + (err?.message || "inconnue"));
   }
 
   if (!text?.trim()) throw new Error("Aucun contenu généré.");
 
-  return { minutes: text };
+  return {
+    minutes: text,
+    usage: {
+      audioSeconds,
+      charCount: totalCharCount,
+      segmentCount: transcriptionParts.length,
+      inputTokens: apiUsage.input_tokens || 0,
+      outputTokens: apiUsage.output_tokens || 0,
+    },
+  };
 };

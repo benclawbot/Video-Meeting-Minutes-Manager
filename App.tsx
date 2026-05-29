@@ -13,12 +13,13 @@ import {
   Music,
   Palette
 } from 'lucide-react';
-import { MeetingDetails, AnalysisStatus, AnalysisResult, MediaFile, DocxTemplateId } from './types';
+import { MeetingDetails, AnalysisStatus, AnalysisResult, MediaFile, DocxTemplateId, UsageMetrics } from './types';
 import { analyzeMeetingVideo } from './services/geminiService';
 import { generateAndDownloadDocx } from './services/docxService';
 import { Button } from './components/Button';
 import { Input } from './components/Input';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
+import { TokenTracker } from './components/TokenTracker';
 
 declare global {
   interface Window {
@@ -38,6 +39,7 @@ const App: React.FC = () => {
   const [mediaFile, setMediaFile] = useState<MediaFile | null>(null);
   const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
   const [result, setResult] = useState<AnalysisResult | null>(null);
+  const [usage, setUsage] = useState<UsageMetrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<DocxTemplateId>('corporate');
@@ -107,6 +109,7 @@ const App: React.FC = () => {
       setMediaFile({ file, previewUrl, isAudioOnly: isAudio && !isVideo });
       setStatus(AnalysisStatus.IDLE);
       setResult(null);
+      setUsage(null);
     }
   };
 
@@ -116,6 +119,7 @@ const App: React.FC = () => {
     if (fileInputRef.current) fileInputRef.current.value = '';
     setStatus(AnalysisStatus.IDLE);
     setResult(null);
+    setUsage(null);
     setError(null);
   };
 
@@ -134,6 +138,7 @@ const App: React.FC = () => {
         (newStatus) => setStatus(newStatus as AnalysisStatus)
       );
       setResult(analysis);
+      setUsage(analysis.usage ?? null);
       setStatus(AnalysisStatus.COMPLETED);
     } catch (err: any) {
       console.error(err);
@@ -175,8 +180,11 @@ const App: React.FC = () => {
             </div>
             <h1 className="text-xl font-bold text-slate-100 tracking-tight">MeetingMind</h1>
           </div>
-          <div className="text-sm text-slate-400 hidden sm:block">
-            Vidéo & Audio (M4A) • MiniMax M2.5
+          <div className="flex items-center gap-4">
+            <TokenTracker usage={usage} status={status} />
+            <span className="text-sm text-slate-400 hidden sm:block">
+              Vidéo & Audio (M4A) • Groq Whisper + MiniMax M2.5
+            </span>
           </div>
         </div>
       </header>

@@ -73,8 +73,9 @@ Réponds maintenant avec le compte rendu en français uniquement :
       return res.status(aiRes.status).json({ error: `Erreur de génération : ${errText}` });
     }
 
-    const data = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const data = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }>; usage?: { input_tokens?: number; output_tokens?: number } };
     let text = data.choices?.[0]?.message?.content || '';
+    const usage = data.usage || {};
 
     // Clean up markdown artifacts
     text = text
@@ -141,7 +142,7 @@ ${text}`.trim();
       // Non-blocking — keep original if review fails
     }
 
-    return res.status(200).json({ minutes: text });
+    return res.status(200).json({ minutes: text, usage });
   } catch (err: any) {
     return res.status(500).json({ error: 'Erreur de génération : ' + (err?.message || 'inconnue') });
   }
