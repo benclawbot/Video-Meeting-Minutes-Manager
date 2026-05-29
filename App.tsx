@@ -172,7 +172,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-10">
+      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="bg-primary-500/10 p-2 rounded-lg border border-primary-500/20">

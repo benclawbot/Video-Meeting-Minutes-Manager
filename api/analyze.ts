@@ -73,11 +73,8 @@ Réponds maintenant avec le compte rendu en français uniquement :
       return res.status(aiRes.status).json({ error: `Erreur de génération : ${errText}` });
     }
 
-    const data = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }>; usage?: { input_tokens?: number; output_tokens?: number } };
+    const data = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
     let text = data.choices?.[0]?.message?.content || '';
-    const usage = data.usage || {};
-    console.log('[analyze] MiniMax response keys:', Object.keys(data));
-    console.log('[analyze] usage:', JSON.stringify(data.usage));
 
     // Clean up markdown artifacts
     text = text
@@ -144,7 +141,12 @@ ${text}`.trim();
       // Non-blocking — keep original if review fails
     }
 
-    return res.status(200).json({ minutes: text, usage });
+    // Estimate tokens: ~4 chars per token for French/English mixed text
+    // Count both API calls (initial analysis + language fix)
+    const inputTokens = Math.ceil(prompt.length / 4) + Math.ceil(fixPrompt.length / 4);
+    const outputTokens = Math.ceil(text.length / 4);
+
+    return res.status(200).json({ minutes: text, usage: { input_tokens: inputTokens, output_tokens: outputTokens } });
   } catch (err: any) {
     return res.status(500).json({ error: 'Erreur de génération : ' + (err?.message || 'inconnue') });
   }
