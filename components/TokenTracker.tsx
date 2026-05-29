@@ -52,7 +52,7 @@ const TokenTracker: React.FC<TokenTrackerProps> = ({ usage, status }) => {
 
       {/* Expanded breakdown */}
       {expanded && (
-        <div className="absolute right-0 top-full mt-2 w-72 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden text-xs">
+        <div className="absolute right-0 top-full mt-2 w-72 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl z-[9999] overflow-visible text-xs">
           {/* Header */}
           <div className="px-3 py-2 bg-slate-900 border-b border-slate-700 flex items-center gap-2">
             <Zap className="w-3.5 h-3.5 text-amber-400" />

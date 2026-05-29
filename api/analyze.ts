@@ -76,6 +76,8 @@ Réponds maintenant avec le compte rendu en français uniquement :
     const data = await aiRes.json() as { choices?: Array<{ message?: { content?: string } }>; usage?: { input_tokens?: number; output_tokens?: number } };
     let text = data.choices?.[0]?.message?.content || '';
     const usage = data.usage || {};
+    console.log('[analyze] MiniMax response keys:', Object.keys(data));
+    console.log('[analyze] usage:', JSON.stringify(data.usage));
 
     // Clean up markdown artifacts
     text = text
