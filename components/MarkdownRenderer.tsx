@@ -1,6 +1,6 @@
 import React from 'react';
 import { DocxTemplateId } from '../types';
-import { TEMPLATE_COLORS } from '../services/docxColors';
+import { TEMPLATE_COLORS, type TemplateColors } from '../services/docxColors';
 
 interface MarkdownRendererProps {
   content: string;
@@ -37,7 +37,7 @@ const THEMES: Record<DocxTemplateId, {
     trEven: string;
     td: string;
   };
-  styles: ReturnType<typeof TEMPLATE_COLORS.corporate>;
+  styles: TemplateColors;
 }> = {
   corporate: {
     page: "bg-white shadow-xl w-full max-w-[21cm] mx-auto p-12 min-h-[29.7cm] font-sans",

@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const minimaxKey = process.env.VITE_MINIMAX_API_KEY;
+  const minimaxKey = process.env.MINIMAX_API_KEY || process.env.VITE_MINIMAX_API_KEY;
   if (!minimaxKey) {
     return res.status(500).json({ error: 'Clé API MiniMax manquante.' });
   }

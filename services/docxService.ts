@@ -60,7 +60,7 @@ const renderFormattedText = (text: string, font: string, color: string, size: nu
 const parseMarkdownToDocxElements = (text: string, style: DocxStyle) => {
   const contentOnly = text.split(/##\s*Transcription Résumée/i)[0];
   const lines = contentOnly.split("\n");
-  const elements: ReturnType<typeof Paragraph>[] = [];
+  const elements: Array<Paragraph | Table> = [];
   let i = 0;
 
   const tableBorder = { style: style.borders.style, size: style.borders.size, color: style.borders.color || style.border };
@@ -82,7 +82,7 @@ const parseMarkdownToDocxElements = (text: string, style: DocxStyle) => {
     const isSeparator = nextLine.includes("|") && nextLine.includes("---");
 
     if (hasPipes && isSeparator) {
-      const rows: ReturnType<typeof TableRow>[] = [];
+      const rows: TableRow[] = [];
       const headerCells = parseCells(lineTrimmed);
 
       rows.push(new TableRow({

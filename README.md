@@ -8,8 +8,8 @@ It accepts video or audio uploads, transcribes the content, generates minutes, a
 
 - Uploads a meeting recording as video or audio (`M4A` supported)
 - Extracts and resamples audio in the browser
-- Transcribes the recording with Deepgram `nova-2`
-- Generates a French executive-style meeting report through MiniMax M2.7
+- Transcribes the recording with Groq Whisper Large v3 through `/api/transcribe`
+- Generates a French executive-style meeting report through MiniMax M2.5 through `/api/analyze`
 - Produces a Markdown preview inside the app
 - Exports the final report to DOCX with multiple document styles
 
@@ -17,7 +17,7 @@ It accepts video or audio uploads, transcribes the content, generates minutes, a
 
 1. Extract audio from the uploaded media file
 2. Resample and chunk long recordings
-3. Transcribe each chunk with Deepgram
+3. Transcribe each chunk with Groq Whisper Large v3
 4. Merge the transcript
 5. Generate structured minutes in French
 6. Export the result as DOCX
@@ -26,8 +26,8 @@ It accepts video or audio uploads, transcribes the content, generates minutes, a
 
 Prerequisites:
 - Node.js
-- `VITE_DEEPGRAM_API_KEY` in `.env.local`
-- A working proxy route for MiniMax at `/api/minimax`
+- `MINIMAX_API_KEY` in `.env.local` or in Vercel project environment variables
+- `GROQ_API_KEY` in `.env.local` or in Vercel project environment variables
 
 Run locally:
 
@@ -37,6 +37,13 @@ npm run dev
 ```
 
 Then open the local Vite URL shown in the terminal.
+
+Deploy to Vercel:
+
+1. Import the repository as a Vite project.
+2. Use `npm run build` as the build command.
+3. Use `dist` as the output directory.
+4. Add `MINIMAX_API_KEY` and `GROQ_API_KEY` to the Vercel project environment variables.
 
 ## Supported Output
 
@@ -59,4 +66,4 @@ The DOCX exporter supports multiple visual templates, including a neutral corpor
 
 ## Status
 
-Prototype focused on meeting-to-minutes conversion for French-language workflows. The UI is already usable as a single-user tool, but deployment still depends on correct API and proxy configuration.
+Prototype focused on meeting-to-minutes conversion for French-language workflows. The UI is already usable as a single-user tool, with Vercel API routes for transcription and minutes generation.
