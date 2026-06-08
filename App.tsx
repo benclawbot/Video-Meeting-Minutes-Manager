@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
- Video, FileText, Calendar, UploadCloud, CheckCircle2, AlertCircle, X,
+  Video, FileText, Calendar, UploadCloud, CheckCircle2, AlertCircle, X,
   PlayCircle, Download, Loader2, Music, Sparkles, Mic2, BrainCircuit,
-  FileDoc, Zap, Clock
+  FileText, Zap, Clock
 } from 'lucide-react';
 import { MeetingDetails, AnalysisStatus, AnalysisResult, MediaFile, DocxTemplateId, UsageMetrics } from './types';
 import { analyzeMeetingVideo } from './services/geminiService';
@@ -38,14 +38,14 @@ const PipelineStepper: React.FC<PipelineStepperProps> = ({ status }) => {
   const isProcessing = status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED;
   const stepOrder = [AnalysisStatus.EXTRACTING_AUDIO, AnalysisStatus.UPLOADING, AnalysisStatus.TRANSCRIBING, AnalysisStatus.PROCESSING];
   const currentIdx = isProcessing ? stepOrder.indexOf(status) : -1;
-  const labels = ["Audio", "Upload", "Transcription", "Analyse"];
+  const labels = ['Audio', 'Upload', 'Transcription', 'Analyse'];
   const icons = [Clock, UploadCloud, Mic2, BrainCircuit];
   const accents = [ACCENT.amber, ACCENT.cyan, ACCENT.cyan, ACCENT.violet];
-  const getState = (idx: number): "done"|"active"|"pending" => {
-    if (!isProcessing) return "pending";
-    if (currentIdx > idx) return "done";
-    if (currentIdx === idx) return "active";
-    return "pending";
+  const getState = (idx: number): 'done'|'active'|'pending' => {
+    if (!isProcessing) return 'pending';
+    if (currentIdx > idx) return 'done';
+    if (currentIdx === idx) return 'active';
+    return 'pending';
   };
   return (
     <div className="flex items-center gap-0">
@@ -125,7 +125,7 @@ const App: React.FC = () => {
   const [usage, setUsage] = useState<UsageMetrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<DocxTemplateId>("'corporate');
+  const [selectedTemplate, setSelectedTemplate] = useState<DocxTemplateId>('corporate');
   const [hasApiKey, setHasApiKey] = useState<boolean>(true);
   const [isCheckingKey, setIsCheckingKey] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -139,8 +139,8 @@ const App: React.FC = () => {
       const file = e.target.files[0];
       const isVideo = file.type.startsWith('video/');
       const isAudio = file.type.startsWith('audio/') || file.name.endsWith('.m4a');
-      if (!isVideo && !isAudio) { setError(""Format non supporté.""); return; }
-      if (file.size > 200*1024*1024) { setError(""Fichier trop volumineux (max 200 Mo).""); return; }
+      if (!isVideo && !isAudio) { setError('Format non supporte.'); return; }
+      if (file.size > 200*1024*1024) { setError('Fichier trop volumineux (max 200 Mo).'); return; }
       setError(null); setMediaFile({ file, previewUrl: URL.createObjectURL(file), isAudioOnly: isAudio && !isVideo });
       setStatus(AnalysisStatus.IDLE); setResult(null); setUsage(null);
     }
@@ -150,15 +150,16 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!mediaFile || !meetingDetails.title || !meetingDetails.date) return;
     setStatus(AnalysisStatus.PROCESSING); setError(null);
-    try { const a = await analyzeMeetingVideo(mediaFile.file, meetingDetails.title, meetingDetails.date, s => setStatus(s as AnalysisStatus)); setResult(a); setUsage(a.usage??null); setStatus(AnalysisStatus.COMPLETED); }
+    try { const a = await analyzeMeetingVideo(mediaFile.file, meetingDetails.title, meetingDetails.date, s => setStatus(s as AnalysisStatus)); setResult(a); setUsage((a.usage ? a.usage : null)); setStatus(AnalysisStatus.COMPLETED); }
     catch(err: any) { console.error(err); setError(err.message||"Erreur lors de l'analyse."); setStatus(AnalysisStatus.ERROR); }
   };
   const handleManualExport = async () => { if (result) { setIsExporting(true); await generateAndDownloadDocx(result, meetingDetails, selectedTemplate); setIsExporting(false); } };
   const isProcessing = status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED;
   const isDone = status === AnalysisStatus.COMPLETED;
   const isDisabled = !isDone && status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR;
-  const getStatusLabel = () => { switch(status){ case AnalysisStatus.EXTRACTING_AUDIO: return "Extraction audio…"; case AnalysisStatus.UPLOADING: return "Envoi vers Deepgram…"; case AnalysisStatus.TRANSCRIBING: return "Transcription…"; case AnalysisStatus.PROCESSING: return "Analyse MiniMax M3…"; case AnalysisStatus.COMPLETED: return "Analyse terminée ✓"; case AnalysisStatus.ERROR: return "Erreur"; default: return "Prêt"; } };
-  const progressStep = {[AnalysisStatus.EXTRACTING_AUDIO]:1,[AnalysisStatus.UPLOADING]:2,[AnalysisStatus.TRANSCRIBING]:3,[AnalysisStatus.PROCESSING]:4}[status] ?? 0;
+  const getStatusLabel = () => { switch(status){ case AnalysisStatus.EXTRACTING_AUDIO: return 'Extraction audio...'; case AnalysisStatus.UPLOADING: return 'Envoi vers Deepgram...'; case AnalysisStatus.TRANSCRIBING: return 'Transcription...'; case AnalysisStatus.PROCESSING: return 'Analyse MiniMax M3...'; case AnalysisStatus.COMPLETED: return 'Analyse terminee'; case AnalysisStatus.ERROR: return 'Erreur'; default: return 'Pret'; } };
+  const progressStep = {[AnalysisStatus.EXTRACTING_AUDIO]:1,[AnalysisStatus.UPLOADING]:2,[AnalysisStatus.TRANSCRIBING]:3,[AnalysisStatus.PROCESSING]:4}[status] !== undefined ? [status] : 0;
+
   return (
     <div className="min-h-screen flex flex-col font-sans" style={{background:"#06080f",color:"#e2e8f0"}}>
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
@@ -184,16 +185,16 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex items-center gap-3 text-[11px] text-slate-500 font-mono">
               <span className="flex items-center gap-1.5"><Mic2 className="w-3 h-3" style={{color:ACCENT.cyan}} />Deepgram Nova-2</span>
-              <span>-></span>
+              <span>-&gt;</span>
               <span className="flex items-center gap-1.5"><BrainCircuit className="w-3 h-3" style={{color:ACCENT.violet}} />MiniMax M3</span>
-              <span>-></span>
+              <span>-&gt;</span>
               <span className="flex items-center gap-1.5"><FileDoc className="w-3 h-3" style={{color:ACCENT.emerald}} />DOCX</span>
             </div>
             <div className="w-px h-5 bg-slate-800" />
             <TokenTracker usage={usage} status={status} />
           </div>
         </div>
-      
+      </header>
 
       {isProcessing && (
         <div className="relative z-10 border-b py-3 px-5" style={{background:"rgba(6,8,15,0.7)",backdropFilter:"blur(12px)",borderColor:"rgba(124,58,237,0.1)"}}>
