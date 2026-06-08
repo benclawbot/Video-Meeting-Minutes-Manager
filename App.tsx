@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import {
   Video, FileText, Calendar, UploadCloud, CheckCircle2, AlertCircle, X,
   PlayCircle, Download, Loader2, Music, Sparkles, Mic2, BrainCircuit,
-  FileText, Zap, Clock
+  Zap, Clock
 } from 'lucide-react';
 import { MeetingDetails, AnalysisStatus, AnalysisResult, MediaFile, DocxTemplateId, UsageMetrics } from './types';
 import { analyzeMeetingVideo } from './services/geminiService';
