@@ -1,17 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Video,
-  FileText,
-  Calendar,
-  UploadCloud,
-  CheckCircle2,
-  AlertCircle,
-  X,
-  PlayCircle,
-  Download,
-  Loader2,
-  Music,
-  Palette
+ Video, FileText, Calendar, UploadCloud, CheckCircle2, AlertCircle, X,
+  PlayCircle, Download, Loader2, Music, Sparkles, Mic2, BrainCircuit,
+  FileDoc, Zap, Clock
 } from 'lucide-react';
 import { MeetingDetails, AnalysisStatus, AnalysisResult, MediaFile, DocxTemplateId, UsageMetrics } from './types';
 import { analyzeMeetingVideo } from './services/geminiService';
@@ -21,409 +12,185 @@ import { Input } from './components/Input';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import { TokenTracker } from './components/TokenTracker';
 
-declare global {
-  interface Window {
-    aistudio: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
-  }
-}
+declare global { interface Window { aistudio: { hasSelectedApiKey: () => Promise<boolean>; openSelectKey: () => Promise<void>; }; } }
+
+const ACCENT = { violet: '#7c3aed', cyan: '#06b6d4', emerald: '#10b981', amber: '#f59e0b' };
+
+const TEMPLATES = [
+  { id: 'corporate' as DocxTemplateId, name: 'Corporate', gradient: 'from-slate-700 to-slate-800', border: 'rgba(100,116,139,0.4)' },
+  { id: 'modern'    as DocxTemplateId, name: 'Modern',    gradient: 'from-cyan-600 to-blue-700',   border: 'rgba(6,182,212,0.4)' },
+  { id: 'executive' as DocxTemplateId, name: 'Executive',  gradient: 'from-slate-800 to-black',     border: 'rgba(71,85,105,0.4)' },
+];
+
+interface ProgressBarProps { step: number; total: number; }
+const ProgressBar: React.FC<ProgressBarProps> = ({ step, total }) => (
+  <div className="flex items-center gap-2">
+    <div className="flex-1 h-1 rounded-full bg-slate-800 overflow-hidden">
+      <div className="h-full rounded-full transition-all duration-700 ease-out"
+        style={{ width: total===0?"0%":Math.round((step/total)*100)+"%", background: "linear-gradient(90deg, "+ACCENT.violet+", "+ACCENT.cyan+")", boxShadow: "0 0 8px "+ACCENT.violet+"60" }} />
+    </div>
+    <span className="text-[10px] font-mono text-slate-500 tabular-nums">{Math.round(total===0?0:(step/total)*100)}%</span>
+  </div>
+);
+
+interface PipelineStepperProps { status: AnalysisStatus; }
+const PipelineStepper: React.FC<PipelineStepperProps> = ({ status }) => {
+  const isProcessing = status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED;
+  const stepOrder = [AnalysisStatus.EXTRACTING_AUDIO, AnalysisStatus.UPLOADING, AnalysisStatus.TRANSCRIBING, AnalysisStatus.PROCESSING];
+  const currentIdx = isProcessing ? stepOrder.indexOf(status) : -1;
+  const labels = ["Audio", "Upload", "Transcription", "Analyse"];
+  const icons = [Clock, UploadCloud, Mic2, BrainCircuit];
+  const accents = [ACCENT.amber, ACCENT.cyan, ACCENT.cyan, ACCENT.violet];
+  const getState = (idx: number): "done"|"active"|"pending" => {
+    if (!isProcessing) return "pending";
+    if (currentIdx > idx) return "done";
+    if (currentIdx === idx) return "active";
+    return "pending";
+  };
+  return (
+    <div className="flex items-center gap-0">
+      {labels.map((label, idx) => {
+        const Icon = icons[idx];
+        const accent = accents[idx];
+        const state = getState(idx);
+        return (
+          <React.Fragment key={label}>
+            <div className="flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-all duration-300"
+              style={{ background: state==="active"?accent+"15":state==="done"?"rgba(16,185,129,0.08)":"transparent", border: state!=="pending"?"1px solid "+accent+"40":"1px solid transparent", opacity: state==="pending"&&isProcessing?0.4:1 }}>
+              <div className="relative">
+                {state==="done" ? (
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background:ACCENT.emerald+"20",border:"1.5px solid "+ACCENT.emerald }}>
+                    <CheckCircle2 className="w-3.5 h-3.5" style={{color:ACCENT.emerald}} />
+                  </div>
+                ) : state==="active" ? (
+                  <><div className="absolute inset-0 rounded-full animate-ping opacity-30" style={{background:accent}} /><div className="relative w-7 h-7 rounded-full flex items-center justify-center" style={{background:accent+"20",border:"1.5px solid "+accent}}>
+                    <Icon className="w-3.5 h-3.5" style={{color:accent}} /></div></>
+                ) : (
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{background:"rgba(148,163,184,0.1)",border:"1.5px solid rgba(148,163,184,0.2)"}}>
+                    <Icon className="w-3.5 h-3.5 text-slate-600" />
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] font-medium whitespace-nowrap" style={{color:state==="active"?accent:state==="done"?ACCENT.emerald:"#475569"}}>{label}</span>
+            </div>
+            {idx < labels.length - 1 && <div className="flex-1 h-px mx-1 mb-4" style={{background:currentIdx>idx?"linear-gradient(90deg,"+ACCENT.emerald+","+ACCENT.cyan+")":"#1e293b"}} />}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+};
+
+interface FilePreviewProps { mediaFile: MediaFile; onClear: () => void; disabled: boolean; }
+const FilePreview: React.FC<FilePreviewProps> = ({ mediaFile, onClear, disabled }) => (
+  <div className="relative rounded-2xl overflow-hidden border" style={{borderColor:"rgba(124,58,237,0.25)",background:"rgba(0,0,0,0.4)"}}>
+    {mediaFile.isAudioOnly ? (
+      <div className="flex flex-col items-center justify-center p-6 gap-4">
+        <div className="w-16 h-16 rounded-2xl flex items-center justify-center animate-float" style={{background:"linear-gradient(135deg,rgba(6,182,212,0.2),rgba(124,58,237,0.2))",border:"1px solid rgba(6,182,212,0.3)"}}>
+          <Music className="w-8 h-8 text-cyan-400" />
+        </div>
+        <audio src={mediaFile.previewUrl} className="w-full" controls />
+      </div>
+    ) : <video src={mediaFile.previewUrl} className="w-full max-h-52 object-contain bg-black" controls />}
+    <button type="button" onClick={onClear} disabled={disabled}
+      className="absolute top-2 right-2 p-1.5 rounded-full backdrop-blur-md transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-30"
+      style={{background:"rgba(0,0,0,0.7)",border:"1px solid rgba(255,255,255,0.1)"}}>
+      <X className="w-3.5 h-3.5 text-white" />
+    </button>
+    <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
+      <p className="text-[11px] text-slate-300 truncate font-mono px-1">{mediaFile.file.name}</p>
+    </div>
+  </div>
+);
+
+interface TemplatePickerProps { selected: DocxTemplateId; onChange: (id: DocxTemplateId) => void; }
+const TemplatePicker: React.FC<TemplatePickerProps> = ({ selected, onChange }) => (
+  <div className="flex gap-2">
+    {TEMPLATES.map(tpl => (
+      <button key={tpl.id} onClick={() => onChange(tpl.id)}
+        className="flex-1 flex flex-col items-center gap-1.5 p-2.5 rounded-xl border transition-all duration-300 hover:scale-[1.02] active:scale-[0.98]"
+        style={{background:selected===tpl.id?"rgba(124,58,237,0.08)":"rgba(15,23,42,0.5)",borderColor:selected===tpl.id?ACCENT.violet+"80":tpl.border,boxShadow:selected===tpl.id?"0 0 16px "+ACCENT.violet+"20":"none"}}>
+        <div className={"w-full h-7 rounded-lg bg-gradient-to-br "+tpl.gradient} style={{border:"1px solid rgba(0,0,0,0.2)"}} />
+        <span className="text-[11px] font-medium" style={{color:selected===tpl.id?ACCENT.violet:"#64748b"}}>{tpl.name}</span>
+      </button>
+    ))}
+  </div>
+);
 
 const App: React.FC = () => {
-  const [meetingDetails, setMeetingDetails] = useState<MeetingDetails>({
-    title: '',
-    date: new Date().toISOString().split('T')[0]
-  });
-
+  const [meetingDetails, setMeetingDetails] = useState<MeetingDetails>({ title: '', date: new Date().toISOString().split('T')[0] });
   const [mediaFile, setMediaFile] = useState<MediaFile | null>(null);
   const [status, setStatus] = useState<AnalysisStatus>(AnalysisStatus.IDLE);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [usage, setUsage] = useState<UsageMetrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<DocxTemplateId>('corporate');
-
+  const [selectedTemplate, setSelectedTemplate] = useState<DocxTemplateId>("'corporate');
   const [hasApiKey, setHasApiKey] = useState<boolean>(true);
   const [isCheckingKey, setIsCheckingKey] = useState<boolean>(true);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const checkApiKey = async () => {
-      if (window.aistudio && window.aistudio.hasSelectedApiKey) {
-        try {
-          const selected = await window.aistudio.hasSelectedApiKey();
-          setHasApiKey(selected);
-        } catch (e) {
-          console.error("Error checking API key:", e);
-        }
-      }
-      setIsCheckingKey(false);
-    };
-    checkApiKey();
-  }, []);
-
-  const handleOpenKeyDialog = async () => {
-    if (window.aistudio && window.aistudio.openSelectKey) {
-      try {
-        await window.aistudio.openSelectKey();
-        setHasApiKey(true);
-      } catch (e) {
-        console.error("Error opening key dialog:", e);
-      }
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (mediaFile?.previewUrl) {
-        URL.revokeObjectURL(mediaFile.previewUrl);
-      }
-    };
-  }, [mediaFile]);
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setMeetingDetails(prev => ({ ...prev, [name]: value }));
-  };
-
+  useEffect(() => { const ck = async () => { if (window.aistudio?.hasSelectedApiKey) { try { setHasApiKey(await window.aistudio.hasSelectedApiKey()); } catch(e) {} } }; ck(); setIsCheckingKey(false); }, []);
+  const handleOpenKeyDialog = async () => { if (window.aistudio?.openSelectKey) { try { await window.aistudio.openSelectKey(); setHasApiKey(true); } catch(e) {} } };
+  useEffect(() => { return () => { if (mediaFile?.previewUrl) URL.revokeObjectURL(mediaFile.previewUrl); }; }, [mediaFile]);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => { setMeetingDetails(p => ({ ...p, [e.target.name]: e.target.value })); };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
+    if (e.target.files?.[0]) {
       const file = e.target.files[0];
       const isVideo = file.type.startsWith('video/');
       const isAudio = file.type.startsWith('audio/') || file.name.endsWith('.m4a');
-
-      if (!isVideo && !isAudio) {
-        setError("Veuillez télécharger un fichier vidéo ou audio (M4A) valide.");
-        return;
-      }
-
-      if (file.size > 200 * 1024 * 1024) {
-        setError("Le fichier dépasse la limite de 200Mo.");
-        return;
-      }
-
-      setError(null);
-      const previewUrl = URL.createObjectURL(file);
-      setMediaFile({ file, previewUrl, isAudioOnly: isAudio && !isVideo });
-      setStatus(AnalysisStatus.IDLE);
-      setResult(null);
-      setUsage(null);
+      if (!isVideo && !isAudio) { setError(""Format non supporté.""); return; }
+      if (file.size > 200*1024*1024) { setError(""Fichier trop volumineux (max 200 Mo).""); return; }
+      setError(null); setMediaFile({ file, previewUrl: URL.createObjectURL(file), isAudioOnly: isAudio && !isVideo });
+      setStatus(AnalysisStatus.IDLE); setResult(null); setUsage(null);
     }
   };
-
-  const clearFile = () => {
-    if (mediaFile?.previewUrl) URL.revokeObjectURL(mediaFile.previewUrl);
-    setMediaFile(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    setStatus(AnalysisStatus.IDLE);
-    setResult(null);
-    setUsage(null);
-    setError(null);
-  };
-
+  const clearFile = () => { if (mediaFile?.previewUrl) URL.revokeObjectURL(mediaFile.previewUrl); setMediaFile(null); if (fileInputRef.current) fileInputRef.current.value=''; setStatus(AnalysisStatus.IDLE); setResult(null); setUsage(null); setError(null); };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!mediaFile || !meetingDetails.title || !meetingDetails.date) return;
-
-    setStatus(AnalysisStatus.PROCESSING);
-    setError(null);
-
-    try {
-      const analysis = await analyzeMeetingVideo(
-        mediaFile.file,
-        meetingDetails.title,
-        meetingDetails.date,
-        (newStatus) => setStatus(newStatus as AnalysisStatus)
-      );
-      setResult(analysis);
-      setUsage(analysis.usage ?? null);
-      setStatus(AnalysisStatus.COMPLETED);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Une erreur est survenue lors de l'analyse.");
-      setStatus(AnalysisStatus.ERROR);
-    }
+    setStatus(AnalysisStatus.PROCESSING); setError(null);
+    try { const a = await analyzeMeetingVideo(mediaFile.file, meetingDetails.title, meetingDetails.date, s => setStatus(s as AnalysisStatus)); setResult(a); setUsage(a.usage??null); setStatus(AnalysisStatus.COMPLETED); }
+    catch(err: any) { console.error(err); setError(err.message||"Erreur lors de l'analyse."); setStatus(AnalysisStatus.ERROR); }
   };
-
-  const handleManualExport = async () => {
-    if (result) {
-      setIsExporting(true);
-      await generateAndDownloadDocx(result, meetingDetails, selectedTemplate);
-      setIsExporting(false);
-    }
-  };
-
-  const getStatusMessage = () => {
-    switch(status) {
-      case AnalysisStatus.EXTRACTING_AUDIO: return "Extraction de l'audio...";
-      case AnalysisStatus.UPLOADING: return "Transmission à l'IA...";
-      case AnalysisStatus.PROCESSING: return "Analyse du contenu...";
-      default: return "Traitement en cours...";
-    }
-  };
-
-  const templates: {id: DocxTemplateId, name: string, color: string}[] = [
-    { id: 'corporate', name: 'Corporate', color: 'bg-slate-700' },
-    { id: 'modern', name: 'Modern', color: 'bg-sky-500' },
-    { id: 'executive', name: 'Executive', color: 'bg-slate-800' },
-  ];
-
+  const handleManualExport = async () => { if (result) { setIsExporting(true); await generateAndDownloadDocx(result, meetingDetails, selectedTemplate); setIsExporting(false); } };
+  const isProcessing = status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED;
+  const isDone = status === AnalysisStatus.COMPLETED;
+  const isDisabled = !isDone && status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR;
+  const getStatusLabel = () => { switch(status){ case AnalysisStatus.EXTRACTING_AUDIO: return "Extraction audio…"; case AnalysisStatus.UPLOADING: return "Envoi vers Deepgram…"; case AnalysisStatus.TRANSCRIBING: return "Transcription…"; case AnalysisStatus.PROCESSING: return "Analyse MiniMax M3…"; case AnalysisStatus.COMPLETED: return "Analyse terminée ✓"; case AnalysisStatus.ERROR: return "Erreur"; default: return "Prêt"; } };
+  const progressStep = {[AnalysisStatus.EXTRACTING_AUDIO]:1,[AnalysisStatus.UPLOADING]:2,[AnalysisStatus.TRANSCRIBING]:3,[AnalysisStatus.PROCESSING]:4}[status] ?? 0;
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
-      <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="bg-indigo-500/10 p-2 rounded-lg border border-indigo-500/20">
-              <Video className="w-6 h-6 text-indigo-400" />
+    <div className="min-h-screen flex flex-col font-sans" style={{background:"#06080f",color:"#e2e8f0"}}>
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[500px] rounded-full" style={{background:"radial-gradient(ellipse,rgba(124,58,237,0.12) 0%,transparent 70%)"}} />
+        <div className="absolute top-1/2 right-0 w-[500px] h-[500px] rounded-full" style={{background:"radial-gradient(ellipse,rgba(6,182,212,0.07) 0%,transparent 70%)"}} />
+        <div className="absolute bottom-0 left-0 w-[400px] h-[300px] rounded-full" style={{background:"radial-gradient(ellipse,rgba(16,185,129,0.05) 0%,transparent 70%)"}} />
+      </div>
+
+      <header className="relative z-10 border-b" style={{background:"rgba(6,8,15,0.85)",backdropFilter:"blur(20px)",borderColor:"rgba(124,58,237,0.15)"}}>
+        <div className="max-w-7xl mx-auto px-5 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-xl blur-lg opacity-50" style={{background:"linear-gradient(135deg,"+ACCENT.violet+","+ACCENT.cyan+")",filter:"blur(12px)"}} />
+              <div className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{background:"rgba(124,58,237,0.1)",border:"1px solid rgba(124,58,237,0.25)"}}>
+                <Video className="w-5 h-5" style={{color:ACCENT.violet}} />
+                <span className="text-sm font-bold text-slate-100 tracking-tight">MeetingMind</span>
+              </div>
             </div>
-            <h1 className="text-xl font-bold text-slate-100 tracking-tight">MeetingMind</h1>
+            <div className="hidden md:flex items-center gap-1.5 ml-2 px-2.5 py-1 rounded-full text-[10px] font-mono" style={{background:"rgba(6,182,212,0.08)",border:"1px solid rgba(6,182,212,0.2)",color:ACCENT.cyan}}>
+              <Zap className="w-2.5 h-2.5" />Powered by MiniMax M3
+            </div>
           </div>
           <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-3 text-[11px] text-slate-500 font-mono">
+              <span className="flex items-center gap-1.5"><Mic2 className="w-3 h-3" style={{color:ACCENT.cyan}} />Deepgram Nova-2</span>
+              <span>-></span>
+              <span className="flex items-center gap-1.5"><BrainCircuit className="w-3 h-3" style={{color:ACCENT.violet}} />MiniMax M3</span>
+              <span>-></span>
+              <span className="flex items-center gap-1.5"><FileDoc className="w-3 h-3" style={{color:ACCENT.emerald}} />DOCX</span>
+            </div>
+            <div className="w-px h-5 bg-slate-800" />
             <TokenTracker usage={usage} status={status} />
-            <span className="text-sm text-slate-400 hidden sm:block">
-              Deepgram Nova-2 • MiniMax M3
-            </span>
           </div>
         </div>
       </header>
-
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {!hasApiKey && !isCheckingKey ? (
-          <div className="flex flex-col items-center justify-center h-[60vh] bg-slate-900 rounded-3xl border border-slate-800 p-12 text-center shadow-2xl">
-            <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center mb-8 border border-indigo-500/20">
-              <Palette className="w-10 h-10 text-indigo-400" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-100 mb-4">Configuration Requise</h2>
-            <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
-              Pour utiliser MiniMax M3, vous devez configurer une clé API MiniMax valide dans le fichier <code>.env.local</code> (variable <code>MINIMAX_API_KEY</code>).
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4">
-              <Button onClick={handleOpenKeyDialog} size="lg" className="px-8">
-                Sélectionner une Clé API
-              </Button>
-              <a
-                href="https://www.minimaxi.com/document/guides"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center px-6 py-2.5 text-sm font-medium text-slate-300 hover:text-white transition-colors"
-              >
-                Documentation MiniMax
-              </a>
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
-          <div className="lg:col-span-4 space-y-6">
-            <div className="glass-panel p-6 rounded-2xl">
-              <h2 className="text-lg font-semibold text-slate-100 mb-6 flex items-center">
-                <UploadCloud className="w-5 h-5 mr-2 text-indigo-400" />
-                Nouvelle Réunion
-              </h2>
-
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <Input
-                  label="Titre de la réunion"
-                  name="title"
-                  placeholder="ex: Réunion de Direction"
-                  value={meetingDetails.title}
-                  onChange={handleInputChange}
-                  required
-                  disabled={status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED}
-                />
-
-                <Input
-                  label="Date"
-                  type="date"
-                  name="date"
-                  value={meetingDetails.date}
-                  onChange={handleInputChange}
-                  required
-                  disabled={status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED}
-                />
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-slate-400">Enregistrement (Vidéo ou M4A)</label>
-                  {!mediaFile ? (
-                    <div
-                      className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer group ${status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED ? 'opacity-50 cursor-not-allowed border-slate-700' : 'hover:bg-slate-800/50 hover:border-indigo-500/50 border-slate-700 bg-slate-800/30'}`}
-                      onClick={() => (status === AnalysisStatus.IDLE || status === AnalysisStatus.ERROR || status === AnalysisStatus.COMPLETED) && fileInputRef.current?.click()}
-                    >
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        accept="video/*,audio/x-m4a,audio/mp4,audio/m4a,.m4a"
-                        className="hidden"
-                      />
-                      <div className="mx-auto bg-slate-800 group-hover:bg-slate-700 w-12 h-12 rounded-full flex items-center justify-center mb-4 transition-colors">
-                        <UploadCloud className="w-6 h-6 text-indigo-400" />
-                      </div>
-                      <p className="text-sm font-medium text-slate-300">Ajouter un fichier</p>
-                      <p className="text-xs text-slate-500 mt-1">Vidéo ou Audio (Max 200 Mo)</p>
-                    </div>
-                  ) : (
-                    <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-black shadow-lg">
-                      {mediaFile.isAudioOnly ? (
-                        <div className="w-full h-48 bg-slate-800 flex flex-col items-center justify-center p-4">
-                           <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mb-4 animate-float">
-                             <Music className="w-8 h-8 text-indigo-400" />
-                           </div>
-                           <audio src={mediaFile.previewUrl} className="w-full" controls />
-                        </div>
-                      ) : (
-                        <video src={mediaFile.previewUrl} className="w-full h-48 object-contain bg-black" controls />
-                      )}
-                      <button
-                        type="button"
-                        onClick={clearFile}
-                        disabled={status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED}
-                        className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full text-white transition-colors disabled:opacity-0 backdrop-blur-sm"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                      <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/90 to-transparent">
-                        <p className="text-xs text-slate-300 truncate px-1 font-mono">{mediaFile.file.name}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {error && (
-                  <div className="p-4 bg-red-950/30 border border-red-900/50 rounded-lg flex items-start">
-                    <AlertCircle className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0 mr-2" />
-                    <p className="text-sm text-red-300">{error}</p>
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  className="w-full"
-                  size="lg"
-                  isLoading={status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED}
-                  disabled={!mediaFile || !meetingDetails.title || !meetingDetails.date}
-                  icon={<PlayCircle className="w-4 h-4" />}
-                >
-                  {status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED ? 'Analyse en cours...' : 'Générer Compte Rendu'}
-                </Button>
-              </form>
-            </div>
-
-            <div className="glass-panel p-5 rounded-xl">
-              <h4 className="text-sm font-semibold text-slate-200 mb-3 flex items-center">
-                <CheckCircle2 className="w-4 h-4 mr-1.5 text-indigo-500" />
-                Formats Supportés
-              </h4>
-              <ul className="text-xs text-slate-400 space-y-2 ml-1">
-                <li className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-slate-600 mr-2.5"></span>Vidéo (MP4, WebM, MOV)</li>
-                <li className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-slate-600 mr-2.5"></span>Audio Zoom (M4A)</li>
-                <li className="flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-slate-600 mr-2.5"></span>Extraction audio locale haute-fidélité</li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="lg:col-span-8 flex flex-col h-full min-h-[500px]">
-            {result ? (
-              <div className="glass-panel flex flex-col h-full overflow-hidden rounded-2xl">
-                <div className="px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 sticky top-0 z-20">
-                  <div>
-                    <h2 className="text-lg font-bold text-slate-100">{meetingDetails.title}</h2>
-                    <div className="flex items-center text-sm text-slate-400 mt-1">
-                      <Calendar className="w-4 h-4 mr-1.5" />
-                      {new Date(meetingDetails.date).toLocaleDateString('fr-FR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleManualExport}
-                      className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-sm transition-colors ring-1 ring-indigo-500"
-                      title="Télécharger DOCX"
-                    >
-                      {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : <Download className="w-4 h-4 mr-2" />}
-                      Exporter en DOCX
-                    </button>
-                  </div>
-                </div>
-
-                <div className="bg-slate-900 border-b border-slate-800 p-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <Palette className="w-4 h-4 text-indigo-400" />
-                    <span className="text-sm font-medium text-slate-200">Choisir le style d'export</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {templates.map((tpl) => (
-                      <button
-                        key={tpl.id}
-                        onClick={() => setSelectedTemplate(tpl.id)}
-                        className={`
-                          relative group flex flex-col items-center p-2 rounded-lg border transition-all duration-200
-                          ${selectedTemplate === tpl.id
-                            ? 'bg-slate-800 border-primary-500 ring-1 ring-indigo-500'
-                            : 'bg-slate-950 border-slate-800 hover:border-slate-600'
-                          }
-                        `}
-                      >
-                        <div className={`w-full h-8 rounded mb-2 ${tpl.color} shadow-sm border border-black/10`}></div>
-                        <span className={`text-xs font-medium ${selectedTemplate === tpl.id ? 'text-indigo-400' : 'text-slate-400'}`}>
-                          {tpl.name}
-                        </span>
-                        {selectedTemplate === tpl.id && (
-                          <div className="absolute top-1 right-1">
-                            <CheckCircle2 className="w-3 h-3 text-indigo-500" />
-                          </div>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-8 bg-slate-950/50 custom-scrollbar">
-                  <div className="max-w-4xl mx-auto min-h-full">
-                     <div className="flex items-center mb-4 text-slate-400 px-2">
-                         <FileText className="w-4 h-4 mr-2" />
-                         <span className="text-xs uppercase tracking-wider font-semibold">Aperçu du document</span>
-                     </div>
-                     <MarkdownRenderer content={result.minutes} template={selectedTemplate} />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="glass-panel h-full flex flex-col items-center justify-center p-12 text-center rounded-2xl">
-                {status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED ? (
-                  <div className="max-w-md w-full">
-                     <div className="w-16 h-16 bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-6 border border-indigo-500/20">
-                        <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
-                     </div>
-                     <h3 className="text-xl font-semibold text-slate-100 mb-2">{getStatusMessage()}</h3>
-                     <p className="text-slate-400 mb-8">
-                       L'IA traite votre réunion pour identifier les points clés et structurer votre compte rendu.
-                       Cela peut prendre 1 à 2 minutes selon la durée.
-                     </p>
-                     <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                       <div className="h-full bg-primary-500 rounded-full w-full animate-shimmer_2s_infinite]"></div>
-                     </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center mb-6 shadow-inner border border-slate-700">
-                      <FileText className="w-10 h-10 text-slate-500" />
-                    </div>
-                    <h3 className="text-xl font-semibold text-slate-100 mb-2">Prêt pour l'analyse</h3>
-                    <p className="text-slate-400 max-w-md mx-auto">
-                      Téléchargez un enregistrement vidéo ou audio Zoom (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via MiniMax M3.
-                    </p>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-        )}
-      </main>
-    </div>
-  );
-};
-
-export default App;
