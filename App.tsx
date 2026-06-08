@@ -12,6 +12,16 @@ import { Input } from './components/Input';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import { TokenTracker } from './components/TokenTracker';
 
+// Type declaration for Google AI Studio integration
+declare global {
+  interface Window {
+    aistudio?: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}
+
 const ACCENT = { violet: '#7c3aed', cyan: '#06b6d4', emerald: '#10b981', amber: '#f59e0b' };
 
 const TEMPLATES = [
@@ -186,7 +196,7 @@ const App: React.FC = () => {
               <span>-&gt;</span>
               <span className="flex items-center gap-1.5"><BrainCircuit className="w-3 h-3" style={{color:ACCENT.violet}} />MiniMax M3</span>
               <span>-&gt;</span>
-              <span className="flex items-center gap-1.5"><FileDoc className="w-3 h-3" style={{color:ACCENT.emerald}} />DOCX</span>
+              <span className="flex items-center gap-1.5"><FileText className="w-3 h-3" style={{color:ACCENT.emerald}} />DOCX</span>
             </div>
             <div className="w-px h-5 bg-slate-800" />
             <TokenTracker usage={usage} status={status} />
