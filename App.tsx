@@ -175,15 +175,15 @@ const App: React.FC = () => {
       <header className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="bg-primary-500/10 p-2 rounded-lg border border-primary-500/20">
-              <Video className="w-6 h-6 text-primary-400" />
+            <div className="bg-indigo-500/10 p-2 rounded-lg border border-indigo-500/20">
+              <Video className="w-6 h-6 text-indigo-400" />
             </div>
             <h1 className="text-xl font-bold text-slate-100 tracking-tight">MeetingMind</h1>
           </div>
           <div className="flex items-center gap-4">
             <TokenTracker usage={usage} status={status} />
             <span className="text-sm text-slate-400 hidden sm:block">
-              Vidéo & Audio (M4A) • Groq Whisper + MiniMax M2.5
+              Deepgram Nova-2 • MiniMax M3
             </span>
           </div>
         </div>
@@ -192,12 +192,12 @@ const App: React.FC = () => {
       <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         {!hasApiKey && !isCheckingKey ? (
           <div className="flex flex-col items-center justify-center h-[60vh] bg-slate-900 rounded-3xl border border-slate-800 p-12 text-center shadow-2xl">
-            <div className="w-20 h-20 bg-primary-500/10 rounded-full flex items-center justify-center mb-8 border border-primary-500/20">
-              <Palette className="w-10 h-10 text-primary-400" />
+            <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center mb-8 border border-indigo-500/20">
+              <Palette className="w-10 h-10 text-indigo-400" />
             </div>
             <h2 className="text-2xl font-bold text-slate-100 mb-4">Configuration Requise</h2>
             <p className="text-slate-400 max-w-md mb-8 leading-relaxed">
-              Pour utiliser MiniMax M2.5, vous devez configurer une clé API MiniMax valide dans le fichier <code>.env.local</code> (variable <code>MINIMAX_API_KEY</code>).
+              Pour utiliser MiniMax M3, vous devez configurer une clé API MiniMax valide dans le fichier <code>.env.local</code> (variable <code>MINIMAX_API_KEY</code>).
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Button onClick={handleOpenKeyDialog} size="lg" className="px-8">
@@ -216,9 +216,9 @@ const App: React.FC = () => {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
           <div className="lg:col-span-4 space-y-6">
-            <div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 p-6">
+            <div className="glass-panel p-6 rounded-2xl">
               <h2 className="text-lg font-semibold text-slate-100 mb-6 flex items-center">
-                <UploadCloud className="w-5 h-5 mr-2 text-primary-400" />
+                <UploadCloud className="w-5 h-5 mr-2 text-indigo-400" />
                 Nouvelle Réunion
               </h2>
 
@@ -247,7 +247,7 @@ const App: React.FC = () => {
                   <label className="block text-sm font-medium text-slate-400">Enregistrement (Vidéo ou M4A)</label>
                   {!mediaFile ? (
                     <div
-                      className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer group ${status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED ? 'opacity-50 cursor-not-allowed border-slate-700' : 'hover:bg-slate-800/50 hover:border-primary-500/50 border-slate-700 bg-slate-800/30'}`}
+                      className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer group ${status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED ? 'opacity-50 cursor-not-allowed border-slate-700' : 'hover:bg-slate-800/50 hover:border-indigo-500/50 border-slate-700 bg-slate-800/30'}`}
                       onClick={() => (status === AnalysisStatus.IDLE || status === AnalysisStatus.ERROR || status === AnalysisStatus.COMPLETED) && fileInputRef.current?.click()}
                     >
                       <input
@@ -258,7 +258,7 @@ const App: React.FC = () => {
                         className="hidden"
                       />
                       <div className="mx-auto bg-slate-800 group-hover:bg-slate-700 w-12 h-12 rounded-full flex items-center justify-center mb-4 transition-colors">
-                        <UploadCloud className="w-6 h-6 text-primary-400" />
+                        <UploadCloud className="w-6 h-6 text-indigo-400" />
                       </div>
                       <p className="text-sm font-medium text-slate-300">Ajouter un fichier</p>
                       <p className="text-xs text-slate-500 mt-1">Vidéo ou Audio (Max 200 Mo)</p>
@@ -267,8 +267,8 @@ const App: React.FC = () => {
                     <div className="relative rounded-xl overflow-hidden border border-slate-700 bg-black shadow-lg">
                       {mediaFile.isAudioOnly ? (
                         <div className="w-full h-48 bg-slate-800 flex flex-col items-center justify-center p-4">
-                           <div className="w-16 h-16 bg-primary-500/20 rounded-full flex items-center justify-center mb-4">
-                             <Music className="w-8 h-8 text-primary-400" />
+                           <div className="w-16 h-16 bg-indigo-500/20 rounded-full flex items-center justify-center mb-4 animate-float">
+                             <Music className="w-8 h-8 text-indigo-400" />
                            </div>
                            <audio src={mediaFile.previewUrl} className="w-full" controls />
                         </div>
@@ -310,9 +310,9 @@ const App: React.FC = () => {
               </form>
             </div>
 
-            <div className="bg-slate-900 rounded-xl p-5 border border-slate-800">
+            <div className="glass-panel p-5 rounded-xl">
               <h4 className="text-sm font-semibold text-slate-200 mb-3 flex items-center">
-                <CheckCircle2 className="w-4 h-4 mr-1.5 text-primary-500" />
+                <CheckCircle2 className="w-4 h-4 mr-1.5 text-indigo-500" />
                 Formats Supportés
               </h4>
               <ul className="text-xs text-slate-400 space-y-2 ml-1">
@@ -325,7 +325,7 @@ const App: React.FC = () => {
 
           <div className="lg:col-span-8 flex flex-col h-full min-h-[500px]">
             {result ? (
-              <div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 flex flex-col h-full overflow-hidden">
+              <div className="glass-panel flex flex-col h-full overflow-hidden rounded-2xl">
                 <div className="px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-slate-900 sticky top-0 z-20">
                   <div>
                     <h2 className="text-lg font-bold text-slate-100">{meetingDetails.title}</h2>
@@ -338,7 +338,7 @@ const App: React.FC = () => {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={handleManualExport}
-                      className="flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 hover:bg-primary-500 rounded-lg shadow-sm transition-colors ring-1 ring-primary-500"
+                      className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-500 rounded-lg shadow-sm transition-colors ring-1 ring-indigo-500"
                       title="Télécharger DOCX"
                     >
                       {isExporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin"/> : <Download className="w-4 h-4 mr-2" />}
@@ -349,7 +349,7 @@ const App: React.FC = () => {
 
                 <div className="bg-slate-900 border-b border-slate-800 p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Palette className="w-4 h-4 text-primary-400" />
+                    <Palette className="w-4 h-4 text-indigo-400" />
                     <span className="text-sm font-medium text-slate-200">Choisir le style d'export</span>
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -360,18 +360,18 @@ const App: React.FC = () => {
                         className={`
                           relative group flex flex-col items-center p-2 rounded-lg border transition-all duration-200
                           ${selectedTemplate === tpl.id
-                            ? 'bg-slate-800 border-primary-500 ring-1 ring-primary-500'
+                            ? 'bg-slate-800 border-primary-500 ring-1 ring-indigo-500'
                             : 'bg-slate-950 border-slate-800 hover:border-slate-600'
                           }
                         `}
                       >
                         <div className={`w-full h-8 rounded mb-2 ${tpl.color} shadow-sm border border-black/10`}></div>
-                        <span className={`text-xs font-medium ${selectedTemplate === tpl.id ? 'text-primary-400' : 'text-slate-400'}`}>
+                        <span className={`text-xs font-medium ${selectedTemplate === tpl.id ? 'text-indigo-400' : 'text-slate-400'}`}>
                           {tpl.name}
                         </span>
                         {selectedTemplate === tpl.id && (
                           <div className="absolute top-1 right-1">
-                            <CheckCircle2 className="w-3 h-3 text-primary-500" />
+                            <CheckCircle2 className="w-3 h-3 text-indigo-500" />
                           </div>
                         )}
                       </button>
@@ -390,11 +390,11 @@ const App: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <div className="bg-slate-900 rounded-2xl shadow-xl border border-slate-800 h-full flex flex-col items-center justify-center p-12 text-center">
+              <div className="glass-panel h-full flex flex-col items-center justify-center p-12 text-center rounded-2xl">
                 {status !== AnalysisStatus.IDLE && status !== AnalysisStatus.ERROR && status !== AnalysisStatus.COMPLETED ? (
                   <div className="max-w-md w-full">
-                     <div className="w-16 h-16 bg-primary-900/30 rounded-full flex items-center justify-center mx-auto mb-6 border border-primary-500/20">
-                        <Loader2 className="w-8 h-8 text-primary-400 animate-spin" />
+                     <div className="w-16 h-16 bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-6 border border-indigo-500/20">
+                        <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
                      </div>
                      <h3 className="text-xl font-semibold text-slate-100 mb-2">{getStatusMessage()}</h3>
                      <p className="text-slate-400 mb-8">
@@ -402,7 +402,7 @@ const App: React.FC = () => {
                        Cela peut prendre 1 à 2 minutes selon la durée.
                      </p>
                      <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
-                       <div className="h-full bg-primary-500 rounded-full w-full animate-[shimmer_2s_infinite]"></div>
+                       <div className="h-full bg-primary-500 rounded-full w-full animate-shimmer_2s_infinite]"></div>
                      </div>
                   </div>
                 ) : (
@@ -412,7 +412,7 @@ const App: React.FC = () => {
                     </div>
                     <h3 className="text-xl font-semibold text-slate-100 mb-2">Prêt pour l'analyse</h3>
                     <p className="text-slate-400 max-w-md mx-auto">
-                      Téléchargez un enregistrement vidéo ou audio Zoom (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via MiniMax M2.5.
+                      Téléchargez un enregistrement vidéo ou audio Zoom (jusqu'à 200 Mo) pour générer un compte rendu structuré en français via MiniMax M3.
                     </p>
                   </>
                 )}
