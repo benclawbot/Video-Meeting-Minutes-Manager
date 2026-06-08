@@ -12,8 +12,6 @@ import { Input } from './components/Input';
 import { MarkdownRenderer } from './components/MarkdownRenderer';
 import { TokenTracker } from './components/TokenTracker';
 
-declare global { interface Window { aistudio: { hasSelectedApiKey: () => Promise<boolean>; openSelectKey: () => Promise<void>; }; } }
-
 const ACCENT = { violet: '#7c3aed', cyan: '#06b6d4', emerald: '#10b981', amber: '#f59e0b' };
 
 const TEMPLATES = [
