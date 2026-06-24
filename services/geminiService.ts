@@ -1,4 +1,4 @@
-import { AnalysisResult } from "../types";
+import { AnalysisResult, OutputLanguage } from "../types";
 
 const TARGET_RATE = 16000;
 const CHUNK_DURATION_SEC = 120;
