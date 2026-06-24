@@ -3,6 +3,8 @@ export interface MeetingDetails {
   date: string;
 }
 
+export type OutputLanguage = 'fr' | 'en';
+
 export interface UsageMetrics {
   audioSeconds: number;
   charCount: number;
@@ -33,4 +35,4 @@ export interface MediaFile {
   isAudioOnly: boolean;
 }
 
-export type DocxTemplateId = 'corporate' | 'modern' | 'executive';
+export type DocxTemplateId = 'corporate' | 'modern' | 'executive' | 'briefing';
