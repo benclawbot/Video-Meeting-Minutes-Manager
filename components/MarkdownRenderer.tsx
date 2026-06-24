@@ -52,12 +52,12 @@ const THEMES: Record<DocxTemplateId, {
   },
   briefing: {
     page: "shadow-2xl w-full max-w-[21cm] mx-auto p-12 min-h-[29.7cm] font-serif",
-    h1: "text-5xl font-semibold mb-8 pb-5 border-b leading-tight tracking-tight",
-    h2: "text-[11px] font-bold mt-10 mb-4 uppercase tracking-[0.32em] pb-2 border-b font-mono",
-    h3: "text-base font-semibold mt-6 mb-2",
-    p: "mb-4 leading-relaxed text-justify",
-    liItem: "flex items-start mb-2.5",
-    table: { container: "my-7 overflow-hidden border", table: "w-full text-left text-sm border-collapse", thead: "", th: "px-4 py-3 text-[11px] font-bold uppercase tracking-widest border-r last:border-r-0 border-b", tbody: "", tr: "border-b last:border-b-0", trEven: "", td: "px-4 py-3 border-r last:border-r-0 align-top" },
+    h1: "text-5xl font-semibold mb-6 leading-tight tracking-tight",
+    h2: "text-2xl font-semibold mt-8 mb-4 pb-3 border-b",
+    h3: "text-base font-semibold mt-5 mb-2 font-sans",
+    p: "mb-4 leading-relaxed text-justify font-sans",
+    liItem: "flex items-start mb-2 font-sans",
+    table: { container: "my-6 overflow-hidden border rounded-md", table: "w-full text-left text-xs border-collapse table-fixed", thead: "", th: "px-3 py-2 text-[10px] font-bold uppercase tracking-wide border-r last:border-r-0 border-b", tbody: "", tr: "border-b last:border-b-0", trEven: "", td: "px-3 py-2 border-r last:border-r-0 align-top break-words" },
     styles: TEMPLATE_COLORS.briefing,
   },
 };
@@ -113,7 +113,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, tem
       }
 
       if (line.startsWith("### ")) elements.push(<h3 key={i} className={theme.h3} style={hexToStyle(colors.subtitle)}>{line.replace("### ", "")}</h3>);
-      else if (line.startsWith("## ")) elements.push(<h2 key={i} className={theme.h2} style={{ color: `#${colors.subtitle}`, borderColor: `#${colors.border}`, borderLeftColor: `#${colors.accent}` }}>{line.replace("## ", "")}</h2>);
+      else if (line.startsWith("## ")) elements.push(<h2 key={i} className={theme.h2} style={{ color: `#${colors.subtitle}`, borderColor: `#${colors.border}` }}>{line.replace("## ", "")}</h2>);
       else if (line.startsWith("# ")) elements.push(<h1 key={i} className={theme.h1} style={{ color: `#${colors.title}`, borderColor: `#${colors.title}` }}>{line.replace("# ", "")}</h1>);
       else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) { const contentStr = trimmed.substring(2); const level = Math.floor((line.match(/^\s*/)?.[0].length || 0) / 2); elements.push(<div key={i} className={theme.liItem} style={{ marginLeft: `${level * 1.5}rem` }}><span style={BULLET_STYLES[template]} className="mr-2 mt-1.5 inline-block w-1.5 h-1.5 rounded-full shrink-0" /><span style={hexToStyle(colors.bodyText)}>{renderFormatting(contentStr)}</span></div>); }
       else elements.push(<p key={i} className={theme.p} style={hexToStyle(colors.bodyText)}>{renderFormatting(trimmed)}</p>);
