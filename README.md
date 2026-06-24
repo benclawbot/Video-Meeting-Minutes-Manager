@@ -9,7 +9,7 @@ It accepts video or audio uploads, transcribes the content, generates minutes, a
 - Uploads a meeting recording as video or audio (`M4A` supported)
 - Extracts and resamples audio in the browser
 - Transcribes the recording with Groq Whisper Large v3 through `/api/transcribe`
-- Generates a French executive-style meeting report through MiniMax M2.5 through `/api/analyze`
+- Generates a structured meeting report (French or English) through MiniMax M2.5 through `/api/analyze`
 - Produces a Markdown preview inside the app
 - Exports the final report to DOCX with multiple document styles
 
@@ -19,7 +19,7 @@ It accepts video or audio uploads, transcribes the content, generates minutes, a
 2. Resample and chunk long recordings
 3. Transcribe each chunk with Groq Whisper Large v3
 4. Merge the transcript
-5. Generate structured minutes in French
+5. Generate structured minutes in the selected language
 6. Export the result as DOCX
 
 ## Quick Start
@@ -49,12 +49,22 @@ Deploy to Vercel:
 
 The generated minutes are structured around:
 
-- Executive summary
-- Key discussion points
-- Decisions made
+- Meeting title as the document H1
+- Executive summary / Résumé exécutif
+- Participants
+- Key discussion points / Points clés discutés
+- Decisions made / Décisions prises
 - Action items in a Markdown table
+- Next meeting / Prochaine réunion
 
-The DOCX exporter supports multiple visual templates, including a neutral corporate layout and a more modern blue-styled layout.
+The DOCX exporter supports:
+
+- Corporate
+- Modern
+- Executive
+- Briefing, a warm editorial template inspired by the approved Anthropic-style reference
+
+Minutes can be generated in French or English from the frontend language toggle. French is the default.
 
 ## Project Structure
 

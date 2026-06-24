@@ -4,7 +4,7 @@ import {
   PlayCircle, Download, Loader2, Music, Sparkles, Mic2, BrainCircuit,
   Zap, Clock
 } from 'lucide-react';
-import { MeetingDetails, AnalysisStatus, AnalysisResult, MediaFile, DocxTemplateId, UsageMetrics } from './types';
+import { MeetingDetails, AnalysisStatus, AnalysisResult, MediaFile, DocxTemplateId, UsageMetrics, OutputLanguage } from './types';
 import { analyzeMeetingVideo } from './services/geminiService';
 import { generateAndDownloadDocx } from './services/docxService';
 import { Button } from './components/Button';
@@ -25,9 +25,10 @@ declare global {
 const ACCENT = { violet: '#7c3aed', cyan: '#06b6d4', emerald: '#10b981', amber: '#f59e0b' };
 
 const TEMPLATES = [
-  { id: 'corporate' as DocxTemplateId, name: 'Corporate', gradient: 'from-slate-700 to-slate-800', border: 'rgba(100,116,139,0.4)' },
-  { id: 'modern'    as DocxTemplateId, name: 'Modern',    gradient: 'from-cyan-600 to-blue-700',   border: 'rgba(6,182,212,0.4)' },
-  { id: 'executive' as DocxTemplateId, name: 'Executive',  gradient: 'from-slate-800 to-black',     border: 'rgba(71,85,105,0.4)' },
+  { id: 'briefing'  as DocxTemplateId, name: 'Briefing',   gradient: 'from-[#f3efe6] via-[#eee4d6] to-[#b9402d]', border: 'rgba(185,64,45,0.4)' },
+  { id: 'corporate' as DocxTemplateId, name: 'Corporate',  gradient: 'from-slate-700 to-slate-800',              border: 'rgba(100,116,139,0.4)' },
+  { id: 'modern'    as DocxTemplateId, name: 'Modern',     gradient: 'from-cyan-600 to-blue-700',                border: 'rgba(6,182,212,0.4)' },
+  { id: 'executive' as DocxTemplateId, name: 'Executive',  gradient: 'from-slate-800 to-black',                  border: 'rgba(71,85,105,0.4)' },
 ];
 
 interface ProgressBarProps { step: number; total: number; }
@@ -125,6 +126,30 @@ const TemplatePicker: React.FC<TemplatePickerProps> = ({ selected, onChange }) =
   </div>
 );
 
+interface LanguageToggleProps { value: OutputLanguage; onChange: (value: OutputLanguage) => void; disabled: boolean; }
+const LanguageToggle: React.FC<LanguageToggleProps> = ({ value, onChange, disabled }) => (
+  <div
+    className="rounded-xl p-1 flex gap-1"
+    style={{ background: 'rgba(15,23,42,0.7)', border: '1px solid rgba(71,85,105,0.35)' }}
+  >
+    {(['fr', 'en'] as OutputLanguage[]).map(lang => (
+      <button
+        key={lang}
+        type="button"
+        disabled={disabled}
+        onClick={() => onChange(lang)}
+        className="px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all disabled:opacity-50"
+        style={{
+          background: value === lang ? '#f3efe6' : 'transparent',
+          color: value === lang ? '#1d1b16' : '#94a3b8',
+        }}
+      >
+        {lang === 'fr' ? 'Français' : 'English'}
+      </button>
+    ))}
+  </div>
+);
+
 const App: React.FC = () => {
   const [meetingDetails, setMeetingDetails] = useState<MeetingDetails>({ title: '', date: new Date().toISOString().split('T')[0] });
   const [mediaFile, setMediaFile] = useState<MediaFile | null>(null);
@@ -133,7 +158,8 @@ const App: React.FC = () => {
   const [usage, setUsage] = useState<UsageMetrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<DocxTemplateId>('corporate');
+  const [selectedTemplate, setSelectedTemplate] = useState<DocxTemplateId>('briefing');
+  const [outputLanguage, setOutputLanguage] = useState<OutputLanguage>('fr');
   const [hasApiKey, setHasApiKey] = useState<boolean>(true);
   const [isCheckingKey, setIsCheckingKey] = useState<boolean>(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -158,7 +184,7 @@ const App: React.FC = () => {
     e.preventDefault();
     if (!mediaFile || !meetingDetails.title || !meetingDetails.date) return;
     setStatus(AnalysisStatus.PROCESSING); setError(null);
-    try { const a = await analyzeMeetingVideo(mediaFile.file, meetingDetails.title, meetingDetails.date, s => setStatus(s as AnalysisStatus)); setResult(a); setUsage((a.usage ? a.usage : null)); setStatus(AnalysisStatus.COMPLETED); }
+    try { const a = await analyzeMeetingVideo(mediaFile.file, meetingDetails.title, meetingDetails.date, outputLanguage, s => setStatus(s as AnalysisStatus)); setResult(a); setUsage((a.usage ? a.usage : null)); setStatus(AnalysisStatus.COMPLETED); }
     catch(err: any) { console.error(err); setError(err.message||"Erreur lors de l'analyse."); setStatus(AnalysisStatus.ERROR); }
   };
   const handleManualExport = async () => { if (result) { setIsExporting(true); await generateAndDownloadDocx(result, meetingDetails, selectedTemplate); setIsExporting(false); } };
@@ -238,9 +264,12 @@ const App: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full">
             <div className="lg:col-span-4 xl:col-span-3 flex flex-col gap-4">
               <div className="rounded-2xl p-5" style={{background:"rgba(15,23,42,0.6)",backdropFilter:"blur(16px)",border:"1px solid rgba(71,85,105,0.3)"}}>
-                <div className="flex items-center gap-2 mb-5">
-                  <div className="w-1.5 h-5 rounded-full" style={{background:"linear-gradient(180deg,"+ACCENT.violet+","+ACCENT.cyan+")"}} />
-                  <h2 className="text-[11px] font-semibold text-slate-200 uppercase tracking-widest">Nouvelle Reunion</h2>
+                <div className="flex items-center justify-between gap-3 mb-5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-1.5 h-5 rounded-full" style={{background:"linear-gradient(180deg,"+ACCENT.violet+","+ACCENT.cyan+")"}} />
+                    <h2 className="text-[11px] font-semibold text-slate-200 uppercase tracking-widest">Nouvelle Reunion</h2>
+                  </div>
+                  <LanguageToggle value={outputLanguage} onChange={setOutputLanguage} disabled={isDisabled} />
                 </div>
                 <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                   <Input label="Titre" name="title" placeholder="Reunion de direction Q3" value={meetingDetails.title} onChange={handleInputChange} required disabled={isDisabled} />
@@ -279,6 +308,8 @@ const App: React.FC = () => {
                   {[{icon:"🎬",label:"Video MP4, WebM, MOV"},{icon:"🎙",label:"Audio Zoom M4A"},{icon:"🔊",label:"Extraction audio locale"}].map(item => (
                     <li key={item.label} className="flex items-center gap-2 text-[11px] text-slate-500"><span>{item.icon}</span><span>{item.label}</span></li>
                   ))}
+                  <li className="flex items-center gap-2 text-[11px] text-slate-500"><span>•</span><span>Langue: {outputLanguage === 'fr' ? 'Français' : 'English'}</span></li>
+                  <li className="flex items-center gap-2 text-[11px] text-slate-500"><span>•</span><span>Template par défaut: Briefing</span></li>
                 </ul>
                 <div className="mt-4 pt-3" style={{borderTop:"1px solid rgba(71,85,105,0.15)"}}>
                   <p className="text-[10px] text-slate-600 uppercase tracking-widest font-semibold mb-2">Pipeline</p>
@@ -301,7 +332,7 @@ const App: React.FC = () => {
                     <div>
                       <div className="flex items-center gap-2.5 mb-1"><div className="w-2 h-2 rounded-full animate-pulse" style={{background:ACCENT.emerald}} /><h2 className="text-base font-semibold text-slate-100">{meetingDetails.title}</h2></div>
                       <div className="flex items-center gap-3 text-xs text-slate-500 ml-4">
-                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(meetingDetails.date).toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"})}</span>
+                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(meetingDetails.date).toLocaleDateString(outputLanguage === 'fr' ? "fr-FR" : "en-US",{day:"numeric",month:"long",year:"numeric"})}</span>
                         {usage && <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{Math.round(usage.audioSeconds/60)} min - {usage.charCount.toLocaleString()} chars</span>}
                       </div>
                     </div>
