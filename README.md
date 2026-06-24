@@ -1,35 +1,130 @@
-# Video Meeting Minutes Manager
+# MeetingMind — Video Meeting Minutes Manager
 
-Video Meeting Minutes Manager is a browser-based meeting summarization tool that turns a recorded meeting into a structured French meeting report and exports it as a styled DOCX document.
+MeetingMind is a browser-based meeting-minutes generator that turns a recorded video or audio meeting into structured, editable minutes with a live preview and polished DOCX export.
 
-It accepts video or audio uploads, transcribes the content, generates minutes, and lets you download the result using selectable document templates.
+It is designed for project kick-offs, steering committees, workshops, client meetings, and internal follow-ups where the goal is to move quickly from a recording to a usable meeting report.
 
-## What it does
+**Live app:** https://video-meeting-minutes-manager.vercel.app/
 
-- Uploads a meeting recording as video or audio (`M4A` supported)
-- Extracts and resamples audio in the browser
-- Transcribes the recording with Groq Whisper Large v3 through `/api/transcribe`
-- Generates a structured meeting report (French or English) through MiniMax M2.5 through `/api/analyze`
-- Produces a Markdown preview inside the app
-- Exports the final report to DOCX with multiple document styles
+![MeetingMind application screenshot](docs/images/app-screenshot.svg)
 
-## Processing Pipeline
+## Highlights
 
-1. Extract audio from the uploaded media file
-2. Resample and chunk long recordings
-3. Transcribe each chunk with Groq Whisper Large v3
-4. Merge the transcript
-5. Generate structured minutes in the selected language
-6. Export the result as DOCX
+- Upload a video or audio meeting recording.
+- Extract and chunk audio in the browser before transcription.
+- Transcribe recordings through `/api/transcribe` using Groq Whisper.
+- Generate structured meeting minutes through `/api/analyze` using MiniMax M3 / MiniMax analysis.
+- Choose the output language from the UI: French by default, English optional.
+- Preview the generated minutes directly in the web app.
+- Export professional DOCX minutes using selectable templates.
+- Use the Anthropic-style template for a warm editorial document style.
+- Track usage after generation with an expandable token and usage counter.
+- Deploy as a Vite app with Vercel serverless API routes.
 
-## Quick Start
+## What the app generates
 
-Prerequisites:
-- Node.js
-- `MINIMAX_API_KEY` in `.env.local` or in Vercel project environment variables
-- `GROQ_API_KEY` in `.env.local` or in Vercel project environment variables
+The generated minutes are structured around:
 
-Run locally:
+- Meeting title as the document H1.
+- Executive summary / Résumé exécutif.
+- Participants.
+- Key discussion points / Points clés discutés.
+- Decisions made / Décisions prises.
+- Action items / Actions à mener.
+- Next meeting / Prochaine réunion.
+
+The generation prompt intentionally avoids unnecessary meeting metadata in the final document, such as meeting type, organized by, recorded by, location, link, and generic footer sections.
+
+## DOCX templates
+
+The DOCX exporter supports several visual styles:
+
+- **Anthropic** — warm editorial style with cream paper background, serif headings, subtle rules, muted red accents, and readable action tables.
+- **Corporate** — clean blue business style.
+- **Modern** — lighter teal/green presentation style.
+- **Executive** — warmer board-report style.
+
+The DOCX export is generated from the same Markdown source used by the website preview so the document structure remains aligned with what the user sees in the app.
+
+## Application flow
+
+![MeetingMind architecture diagram](docs/images/app-architecture.svg)
+
+1. The user opens the React/Vite application in the browser.
+2. The user enters meeting details and selects French or English.
+3. The user uploads a video or audio file.
+4. The client extracts and chunks the audio.
+5. `/api/transcribe` sends chunks to Groq Whisper for transcription.
+6. `/api/analyze` sends the merged transcript to MiniMax for structured minutes generation.
+7. The app renders a live Markdown preview.
+8. The user selects a template and exports the result as DOCX.
+9. Token and usage metrics are displayed after generation.
+10. The app runs on Vercel with frontend hosting and serverless API routes.
+
+## Main features
+
+### Meeting upload
+
+The UI accepts video and audio recordings, including M4A files. The frontend handles extraction, resampling, and chunk preparation before calling the transcription API.
+
+### Language toggle
+
+The interface supports French and English generation. French is the default because the primary workflow is French-language meeting reporting.
+
+### Structured AI minutes
+
+The analysis route produces a structured Markdown document with clear headings, expanded bullets, decisions, action items, and next-meeting planning.
+
+### Live preview
+
+Generated minutes are displayed immediately in the app, allowing users to review structure, content, and formatting before exporting.
+
+### DOCX export
+
+The DOCX exporter converts the generated Markdown into a downloadable Word document. Templates are selectable in the UI, with Anthropic as the editorial-style default.
+
+### Usage tracking
+
+After a generation completes, the token counter can be expanded to show audio duration, character count, segment count, input tokens, and output tokens. The overlay is rendered above the rest of the app with an opaque background.
+
+## Tech stack
+
+- **Frontend:** React, Vite, TypeScript, Tailwind-style utility classes.
+- **Icons:** Lucide React.
+- **DOCX generation:** `docx` and `file-saver`.
+- **Transcription API:** Groq Whisper through `/api/transcribe`.
+- **Analysis API:** MiniMax through `/api/analyze`.
+- **Deployment:** Vercel.
+
+## Project structure
+
+```text
+.
+├── App.tsx                         # Main upload, analysis, preview, and export UI
+├── components/
+│   ├── Input.tsx                   # Reusable form input
+│   ├── MarkdownRenderer.tsx        # Web preview renderer for generated minutes
+│   └── TokenTracker.tsx            # Usage and token counter overlay
+├── services/
+│   ├── docxColors.ts               # Template color palettes
+│   ├── docxService.ts              # Markdown-to-DOCX export engine
+│   └── geminiService.ts            # Audio extraction, chunking, transcription, analysis flow
+├── api/
+│   ├── analyze.ts                  # MiniMax minutes generation route
+│   └── transcribe.ts               # Groq Whisper transcription route
+├── types.ts                        # Shared app types
+└── docs/images/                    # README images and diagrams
+```
+
+## Quick start
+
+### Prerequisites
+
+- Node.js.
+- `MINIMAX_API_KEY` in `.env.local` or in Vercel project environment variables.
+- `GROQ_API_KEY` in `.env.local` or in Vercel project environment variables.
+
+### Run locally
 
 ```bash
 npm install
@@ -38,42 +133,28 @@ npm run dev
 
 Then open the local Vite URL shown in the terminal.
 
-Deploy to Vercel:
+### Build
+
+```bash
+npm run lint
+npm run build
+```
+
+### Deploy to Vercel
 
 1. Import the repository as a Vite project.
 2. Use `npm run build` as the build command.
 3. Use `dist` as the output directory.
 4. Add `MINIMAX_API_KEY` and `GROQ_API_KEY` to the Vercel project environment variables.
+5. Deploy.
 
-## Supported Output
+## Environment variables
 
-The generated minutes are structured around:
+```bash
+MINIMAX_API_KEY=your_minimax_key
+GROQ_API_KEY=your_groq_key
+```
 
-- Meeting title as the document H1
-- Executive summary / Résumé exécutif
-- Participants
-- Key discussion points / Points clés discutés
-- Decisions made / Décisions prises
-- Action items in a Markdown table
-- Next meeting / Prochaine réunion
+## Current status
 
-The DOCX exporter supports:
-
-- Corporate
-- Modern
-- Executive
-- Briefing, a warm editorial template inspired by the approved Anthropic-style reference
-
-Minutes can be generated in French or English from the frontend language toggle. French is the default.
-
-## Project Structure
-
-- `App.tsx` — upload flow, analysis states, preview UI
-- `services/geminiService.ts` — transcription + analysis pipeline
-- `services/docxService.ts` — DOCX generation and template styling
-- `components/` — buttons, inputs, Markdown rendering
-- `types.ts` — shared models and export types
-
-## Status
-
-Prototype focused on meeting-to-minutes conversion for French-language workflows. The UI is already usable as a single-user tool, with Vercel API routes for transcription and minutes generation.
+The application is usable as a single-user meeting-to-minutes tool with Vercel API routes for transcription and minutes generation. The main active areas of refinement are DOCX visual fidelity, template consistency, and export behavior across different DOCX viewers.
