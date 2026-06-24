@@ -51,7 +51,7 @@ const tableFromMarkdown = (headers: string[], rows: string[][], t: ReturnType<ty
     width: { size: widths[col] || 20, type: WidthType.PERCENTAGE },
     margins: cellMargins,
     verticalAlign: VerticalAlign.TOP,
-    shading: { fill, color: "auto", type: ShadingType.SOLID },
+    shading: { fill, type: ShadingType.CLEAR },
     borders: { top: border, bottom: border, left: border, right: border },
     children: [new Paragraph({
       children: runs(value, t.bodyFont, header ? t.colors.headerText : t.colors.rowText, 16, header),
@@ -114,8 +114,10 @@ const markdownToDocx = (markdown: string, styleId: DocxTemplateId) => {
     } else if (line.startsWith("- ") || line.startsWith("* ")) {
       const level = Math.floor((raw.length - raw.trimStart().length) / 2);
       children.push(new Paragraph({
-        children: runs(line.slice(2), t.bodyFont, t.colors.bodyText, 19),
-        bullet: { level },
+        children: [
+          new TextRun({ text: "•  ", font: t.bodyFont, color: hex(t.colors.listBullet), size: 19, bold: true }),
+          ...runs(line.slice(2), t.bodyFont, t.colors.bodyText, 19),
+        ],
         indent: { left: 420 * (level + 1), hanging: 220 },
         spacing: { after: 55 },
       }));
