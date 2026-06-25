@@ -329,19 +329,16 @@ const App: React.FC = () => {
                   </div>
                   <div>
                     <label htmlFor="date" className={labelClassOverride}>Date</label>
-                    <div className="relative">
-                      <Calendar className="w-4 h-4 text-stone-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
-                      <input
-                        id="date"
-                        type="date"
-                        name="date"
-                        value={meetingDetails.date}
-                        onChange={handleInputChange}
-                        required
-                        disabled={isDisabled}
-                        className={`block w-full pl-11 border ${inputClassOverride}`}
-                      />
-                    </div>
+                    <input
+                      id="date"
+                      type="date"
+                      name="date"
+                      value={meetingDetails.date}
+                      onChange={handleInputChange}
+                      required
+                      disabled={isDisabled}
+                      className={`block w-full border ${inputClassOverride}`}
+                    />
                   </div>
                   <div>
                     <label className={labelClassOverride}>Enregistrement</label>
@@ -372,7 +369,7 @@ const App: React.FC = () => {
                   <button
                     type="submit"
                     disabled={!mediaFile || !meetingDetails.title || !meetingDetails.date || isProcessing}
-                    className="w-full py-3.5 rounded-full text-xs font-black uppercase tracking-[0.15em] text-white disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 active:scale-95 transition-all"
+                    className="w-full px-4 py-3.5 rounded-full text-[11px] font-black uppercase tracking-[0.05em] text-white whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-95 transition-all"
                     style={{
                       background: (!mediaFile || !meetingDetails.title || isProcessing)
                         ? '#E5E7EB'
@@ -382,9 +379,7 @@ const App: React.FC = () => {
                         : `0 10px 24px ${ACCENT.violet}40`,
                     }}
                   >
-                    <span className="w-5 h-5 rounded-full flex items-center justify-center" style={{ background: 'rgba(255,255,255,0.22)' }}>
-                      {isProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <PlayCircle className="w-3 h-3" />}
-                    </span>
+                    {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                     {isProcessing ? 'Analyse en cours...' : 'Générer le compte rendu'}
                   </button>
                 </form>
