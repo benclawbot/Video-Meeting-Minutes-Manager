@@ -1,107 +1,149 @@
+import { FFmpeg, FFFSType, type FSNode } from "@ffmpeg/ffmpeg";
+import coreURL from "@ffmpeg/core?url";
+import wasmURL from "@ffmpeg/core/wasm?url";
 import { AnalysisResult, OutputLanguage } from "../types";
 
 const TARGET_RATE = 16000;
-const CHUNK_DURATION_SEC = 120;
-const MIN_CHUNK_SEC = 0.01;
+const CHUNK_DURATION_SEC = 90;
 
-const encodeWav8Bit = (samples: Float32Array, sampleRate: number): Blob => {
-  const numSamples = samples.length;
-  const buffer = new ArrayBuffer(44 + numSamples);
-  const view = new DataView(buffer);
-  const writeString = (offset: number, value: string) => {
-    for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i));
-  };
-  writeString(0, "RIFF");
-  view.setUint32(4, 36 + numSamples, true);
-  writeString(8, "WAVE");
-  writeString(12, "fmt ");
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate, true);
-  view.setUint16(32, 1, true);
-  view.setUint16(34, 8, true);
-  writeString(36, "data");
-  view.setUint32(40, numSamples, true);
-  for (let i = 0; i < numSamples; i++) {
-    const s = Math.max(-1, Math.min(1, samples[i]));
-    view.setUint8(44 + i, Math.round((s * 0.5 + 0.5) * 255));
+let ffmpegInstance: FFmpeg | null = null;
+let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
+
+const getFFmpeg = async (): Promise<FFmpeg> => {
+  if (ffmpegInstance?.loaded) return ffmpegInstance;
+
+  if (!ffmpegLoadPromise) {
+    ffmpegInstance = new FFmpeg();
+    ffmpegLoadPromise = ffmpegInstance.load({ coreURL, wasmURL }).then(() => ffmpegInstance as FFmpeg);
   }
-  return new Blob([buffer], { type: "audio/wav" });
+
+  return ffmpegLoadPromise;
 };
 
-const resampleAudio = async (audioBuffer: AudioBuffer, targetRate: number): Promise<AudioBuffer> => {
-  const offlineCtx = new OfflineAudioContext(1, Math.ceil(audioBuffer.duration * targetRate), targetRate);
-  const source = offlineCtx.createBufferSource();
-  source.buffer = audioBuffer;
-  source.connect(offlineCtx.destination);
-  source.start();
-  return await offlineCtx.startRendering();
+const readTextFile = async (ffmpeg: FFmpeg, path: string): Promise<string> => {
+  const data = await ffmpeg.readFile(path, "utf8");
+  return typeof data === "string" ? data : new TextDecoder().decode(data);
+};
+
+const cleanupDir = async (ffmpeg: FFmpeg, dir: string): Promise<void> => {
+  try {
+    const entries = await ffmpeg.listDir(dir);
+    await Promise.all(entries
+      .filter(entry => entry.name !== "." && entry.name !== ".." && !entry.isDir)
+      .map(entry => ffmpeg.deleteFile(`${dir}/${entry.name}`).catch(() => false)));
+    await ffmpeg.deleteDir(dir);
+  } catch {
+    // Best-effort cleanup in the in-memory ffmpeg filesystem.
+  }
+};
+
+const prepareAudioChunks = async (
+  mediaFile: File,
+): Promise<{ chunks: FSNode[]; outputDir: string; audioSeconds: number; ffmpeg: FFmpeg }> => {
+  const ffmpeg = await getFFmpeg();
+  const runId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const inputDir = `/input-${runId}`;
+  const outputDir = `/output-${runId}`;
+  const inputName = "recording";
+  const inputPath = `${inputDir}/${inputName}`;
+  const durationPath = `${outputDir}/duration.txt`;
+
+  await ffmpeg.createDir(inputDir);
+  await ffmpeg.createDir(outputDir);
+  await ffmpeg.mount(FFFSType.WORKERFS, { blobs: [{ name: inputName, data: mediaFile }] }, inputDir);
+
+  try {
+    await ffmpeg.ffprobe([
+      "-v", "error",
+      "-show_entries", "format=duration",
+      "-of", "default=noprint_wrappers=1:nokey=1",
+      inputPath,
+      "-o", durationPath,
+    ]);
+
+    const durationText = await readTextFile(ffmpeg, durationPath).catch(() => "0");
+    const audioSeconds = Number.parseFloat(durationText) || 0;
+    await ffmpeg.deleteFile(durationPath).catch(() => false);
+
+    const exitCode = await ffmpeg.exec([
+      "-i", inputPath,
+      "-vn",
+      "-map", "0:a:0",
+      "-ac", "1",
+      "-ar", String(TARGET_RATE),
+      "-c:a", "pcm_s16le",
+      "-f", "segment",
+      "-segment_time", String(CHUNK_DURATION_SEC),
+      "-reset_timestamps", "1",
+      `${outputDir}/chunk_%03d.wav`,
+    ]);
+
+    if (exitCode !== 0) throw new Error(`FFmpeg returned exit code ${exitCode}.`);
+
+    const chunks = (await ffmpeg.listDir(outputDir))
+      .filter(entry => !entry.isDir && entry.name.endsWith(".wav"))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+    if (chunks.length === 0) throw new Error("No audio chunks could be generated.");
+
+    return { chunks, outputDir, audioSeconds, ffmpeg };
+  } catch (err) {
+    await cleanupDir(ffmpeg, outputDir);
+    throw err;
+  } finally {
+    await ffmpeg.unmount(inputDir).catch(() => false);
+    await ffmpeg.deleteDir(inputDir).catch(() => false);
+  }
 };
 
 export const analyzeMeetingVideo = async (
   mediaFile: File,
   title: string,
   date: string,
-  locale: 'fr' | 'en' = 'fr',
-  onStatusChange?: (status: string) => void
+  locale: "fr" | "en" = "fr",
+  onStatusChange?: (status: string) => void,
 ): Promise<AnalysisResult> => {
   if (onStatusChange) onStatusChange("EXTRACTING_AUDIO");
 
-  const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-  const decodeCtx = new AudioCtx();
-  const arrayBuffer = await mediaFile.arrayBuffer();
-  const audioBuffer = await decodeCtx.decodeAudioData(arrayBuffer);
-  await decodeCtx.close();
-
-  const sampleRate = audioBuffer.sampleRate;
-  const samples = audioBuffer.getChannelData(0);
-  const audioSeconds = audioBuffer.duration;
-
-  if (onStatusChange) onStatusChange("PROCESSING");
-
-  const targetRate = TARGET_RATE;
-  const resampledSamples = sampleRate !== targetRate
-    ? (await resampleAudio(audioBuffer, targetRate)).getChannelData(0)
-    : samples;
+  const { chunks, outputDir, audioSeconds, ffmpeg } = await prepareAudioChunks(mediaFile);
 
   if (onStatusChange) onStatusChange("UPLOADING");
 
-  const samplesPerChunk = Math.floor(CHUNK_DURATION_SEC * targetRate);
-  const totalSamples = resampledSamples.length;
-  const totalChunks = Math.ceil(totalSamples / samplesPerChunk);
   const transcriptionParts: string[] = [];
   let totalCharCount = 0;
 
-  for (let idx = 0; idx < totalChunks; idx++) {
-    const startSample = idx * samplesPerChunk;
-    const endSample = Math.min(startSample + samplesPerChunk, totalSamples);
-    const chunkSamples = resampledSamples.subarray(startSample, endSample);
-    const chunkDurationSec = chunkSamples.length / targetRate;
-    if (chunkDurationSec < MIN_CHUNK_SEC) continue;
+  try {
+    for (let idx = 0; idx < chunks.length; idx++) {
+      if (onStatusChange) onStatusChange("TRANSCRIBING");
 
-    const wavBlob = encodeWav8Bit(chunkSamples, targetRate);
-    try {
-      const res = await fetch("/api/transcribe", { method: "POST", body: wavBlob });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: res.statusText })) as { error: string };
-        throw new Error(err.error || "Erreur de transcription");
+      const chunkPath = `${outputDir}/${chunks[idx].name}`;
+      const chunkData = await ffmpeg.readFile(chunkPath);
+      const wavBlob = new Blob([chunkData], { type: "audio/wav" });
+      await ffmpeg.deleteFile(chunkPath).catch(() => false);
+
+      try {
+        const res = await fetch("/api/transcribe", { method: "POST", body: wavBlob });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText })) as { error: string };
+          throw new Error(err.error || "Erreur de transcription");
+        }
+        const data = await res.json() as { text?: string };
+        if (data.text?.trim()) {
+          transcriptionParts.push(data.text.trim());
+          totalCharCount += data.text.trim().length;
+        }
+      } catch (err: any) {
+        throw new Error("Erreur de transcription : " + (err?.message || "inconnue"));
       }
-      const data = await res.json() as { text?: string };
-      if (data.text?.trim()) {
-        transcriptionParts.push(data.text.trim());
-        totalCharCount += data.text.trim().length;
-      }
-    } catch (err: any) {
-      throw new Error("Erreur de transcription : " + (err?.message || "inconnue"));
+
+      if (idx < chunks.length - 1) await new Promise(resolve => setTimeout(resolve, 200));
     }
-
-    if (idx < totalChunks - 1) await new Promise(r => setTimeout(r, 200));
+  } finally {
+    await cleanupDir(ffmpeg, outputDir);
   }
 
   const transcript = transcriptionParts.join(" ");
-  if (!transcript?.trim()) throw new Error("Aucun contenu audio détecté dans le fichier.");
+  if (!transcript?.trim()) throw new Error("Aucun contenu audio detecte dans le fichier.");
 
   if (onStatusChange) onStatusChange("PROCESSING");
 
@@ -115,23 +157,23 @@ export const analyzeMeetingVideo = async (
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText })) as { error: string };
-      throw new Error(err.error || "Erreur de génération");
+      throw new Error(err.error || "Erreur de generation");
     }
     const data = await res.json() as { minutes?: string; usage?: { input_tokens?: number; output_tokens?: number } };
     text = data.minutes || "";
     apiUsage = data.usage || {};
   } catch (err: any) {
-    throw new Error("Erreur de génération : " + (err?.message || "inconnue"));
+    throw new Error("Erreur de generation : " + (err?.message || "inconnue"));
   }
 
-  if (!text?.trim()) throw new Error("Aucun contenu généré.");
+  if (!text?.trim()) throw new Error("Aucun contenu genere.");
 
   return {
     minutes: text,
     usage: {
       audioSeconds,
       charCount: totalCharCount,
-      segmentCount: transcriptionParts.length,
+      segmentCount: chunks.length,
       inputTokens: apiUsage.input_tokens || 0,
       outputTokens: apiUsage.output_tokens || 0,
     },

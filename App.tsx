@@ -194,7 +194,6 @@ const App: React.FC = () => {
     const isVideo = file.type.startsWith('video/');
     const isAudio = file.type.startsWith('audio/') || file.name.endsWith('.m4a');
     if (!isVideo && !isAudio) { setError('Format non supporté.'); return; }
-    if (file.size > 200 * 1024 * 1024) { setError('Fichier trop volumineux (max 200 Mo).'); return; }
     setError(null);
     setMediaFile({ file, previewUrl: URL.createObjectURL(file), isAudioOnly: isAudio && !isVideo });
     setStatus(AnalysisStatus.IDLE);
@@ -356,7 +355,7 @@ const App: React.FC = () => {
                           <UploadCloud className="w-5 h-5" style={{ color: ACCENT.violet }} />
                         </div>
                         <p className="text-sm font-bold" style={{ color: ACCENT.text }}>Glisser-déposer ou cliquer</p>
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 mt-1">Vidéo ou M4A · Max 200 Mo</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-stone-400 mt-1">Vidéo ou M4A</p>
                       </div>
                     ) : <FilePreview mediaFile={mediaFile} onClear={clearFile} disabled={isDisabled} />}
                   </div>
