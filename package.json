@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -13,6 +16,8 @@
     "@anthropic-ai/sdk": "^0.80.0",
     "@ffmpeg/core": "^0.12.10",
     "@ffmpeg/ffmpeg": "^0.12.15",
+    "@openai-oauth/openai-client": "2.0.0",
+    "@openai-oauth/react": "2.0.0",
     "docx": "8.5.0",
     "file-saver": "2.0.5",
     "lucide-react": "^0.564.0",
