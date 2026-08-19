@@ -1,7 +1,8 @@
 import { FFmpeg, FFFSType, type FSNode } from "@ffmpeg/ffmpeg";
 import coreURL from "@ffmpeg/core?url";
 import wasmURL from "@ffmpeg/core/wasm?url";
-import { AnalysisResult, OutputLanguage } from "../types";
+import { openaiAuthHeaders } from "@openai-oauth/react";
+import { AnalysisResult } from "../types";
 
 const TARGET_RATE = 16000;
 const CHUNK_DURATION_SEC = 90;
@@ -143,16 +144,19 @@ export const analyzeMeetingVideo = async (
   }
 
   const transcript = transcriptionParts.join(" ");
-  if (!transcript?.trim()) throw new Error("Aucun contenu audio detecte dans le fichier.");
+  if (!transcript.trim()) throw new Error("Aucun contenu audio detecte dans le fichier.");
 
   if (onStatusChange) onStatusChange("PROCESSING");
 
   let text = "";
   let apiUsage: { input_tokens?: number; output_tokens?: number } = {};
   try {
+    const headers = await openaiAuthHeaders({
+      headers: { "Content-Type": "application/json" },
+    });
     const res = await fetch("/api/analyze", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({ title, date, transcript, locale }),
     });
     if (!res.ok) {
@@ -166,7 +170,7 @@ export const analyzeMeetingVideo = async (
     throw new Error("Erreur de generation : " + (err?.message || "inconnue"));
   }
 
-  if (!text?.trim()) throw new Error("Aucun contenu genere.");
+  if (!text.trim()) throw new Error("Aucun contenu genere.");
 
   return {
     minutes: text,
