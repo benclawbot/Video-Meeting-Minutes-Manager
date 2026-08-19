@@ -1,8 +1,6 @@
 # MeetingMind — Video Meeting Minutes Manager
 
-MeetingMind is a browser-based meeting-minutes generator that turns a recorded video or audio meeting into structured, editable minutes with a live preview and polished DOCX export.
-
-It is designed for project kick-offs, steering committees, workshops, client meetings, and internal follow-ups where the goal is to move quickly from a recording to a usable meeting report.
+MeetingMind turns recorded video or audio meetings into structured minutes with a live preview and DOCX export.
 
 **Live app:** https://video-meeting-minutes-manager.vercel.app/
 
@@ -10,151 +8,126 @@ It is designed for project kick-offs, steering committees, workshops, client mee
 
 ## Highlights
 
-- Upload a video or audio meeting recording.
-- Extract and chunk audio in the browser before transcription.
-- Transcribe recordings through `/api/transcribe` using Groq Whisper.
-- Generate structured meeting minutes through `/api/analyze` using MiniMax M3 / MiniMax analysis.
-- Choose the output language from the UI: French by default, English optional.
-- Preview the generated minutes directly in the web app.
-- Export professional DOCX minutes using selectable templates.
-- Use the Anthropic-style template for a warm editorial document style.
-- Track usage after generation with an expandable token and usage counter.
-- Deploy as a Vite app with Vercel serverless API routes.
+- Upload video, MP4, M4A, or other browser-supported audio recordings.
+- Extract, resample, and chunk audio locally in the browser with FFmpeg.
+- Transcribe audio through `/api/transcribe` using Groq Whisper.
+- Sign in with a ChatGPT account in the web UI.
+- Generate structured minutes through `/api/analyze` using the signed-in ChatGPT OAuth session and the OpenAI-compatible `/chat/completions` path.
+- No MiniMax key and no OpenAI API key are required for minutes generation.
+- Generate French minutes by default or switch to English.
+- Preview generated Markdown and export polished DOCX files with selectable templates.
 
-## What the app generates
+## Authentication and model access
 
-The generated minutes are structured around:
+MeetingMind uses the same `openai-oauth` family used by Medusa's ChatGPT OAuth route, adapted for a hosted React/Vercel application:
 
-- Meeting title as the document H1.
-- Executive summary / Résumé exécutif.
-- Participants.
-- Key discussion points / Points clés discutés.
-- Decisions made / Décisions prises.
-- Action items / Actions à mener.
-- Next meeting / Prochaine réunion.
+1. `@openai-oauth/react` establishes the ChatGPT session in the browser.
+2. `openaiAuthHeaders()` forwards the request-bound OAuth session only when `/api/analyze` is called.
+3. The Vercel route reconstructs the credentials with `openaiCredentials()`.
+4. `@openai-oauth/openai-client` adapts those credentials to the standard OpenAI JavaScript SDK.
+5. Minutes are generated with `client.chat.completions.create(...)` — chat mode, not an API-key-backed model call.
 
-The generation prompt intentionally avoids unnecessary meeting metadata in the final document, such as meeting type, organized by, recorded by, location, link, and generic footer sections.
+Hosted browser sign-in is handled by the upstream Sign in with ChatGPT flow. When its companion browser extension is required, the UI surfaces the install link and lets the user resume sign-in.
 
-## DOCX templates
-
-The DOCX exporter supports several visual styles:
-
-- **Anthropic** — warm editorial style with cream paper background, serif headings, subtle rules, muted red accents, and readable action tables.
-- **Corporate** — clean blue business style.
-- **Modern** — lighter teal/green presentation style.
-- **Executive** — warmer board-report style.
-
-The DOCX export is generated from the same Markdown source used by the website preview so the document structure remains aligned with what the user sees in the app.
+The app does **not** store a shared model API key on the server. The server receives the connected user's request-bound ChatGPT authorization and account identifier for the analysis request.
 
 ## Application flow
 
 ![MeetingMind architecture diagram](docs/images/app-architecture.svg)
 
-1. The user opens the React/Vite application in the browser.
-2. The user enters meeting details and selects French or English.
-3. The user uploads a video or audio file.
-4. The client extracts and chunks the audio.
-5. `/api/transcribe` sends chunks to Groq Whisper for transcription.
-6. `/api/analyze` sends the merged transcript to MiniMax for structured minutes generation.
-7. The app renders a live Markdown preview.
-8. The user selects a template and exports the result as DOCX.
-9. Token and usage metrics are displayed after generation.
-10. The app runs on Vercel with frontend hosting and serverless API routes.
+1. Open the React/Vite application.
+2. Sign in with ChatGPT.
+3. Enter meeting title/date and choose French or English.
+4. Upload a video, MP4, M4A, or audio recording.
+5. Browser FFmpeg extracts mono 16 kHz audio and creates 90-second WAV chunks.
+6. `/api/transcribe` sends each chunk to Groq Whisper (`whisper-large-v3`).
+7. The merged transcript is sent to `/api/analyze` with the current ChatGPT OAuth headers.
+8. `/api/analyze` selects an available GPT model and calls the ChatGPT OAuth transport through `/chat/completions`.
+9. The app renders the Markdown minutes and usage data.
+10. The result can be exported to DOCX.
 
-## Main features
+## Model selection
 
-### Meeting upload
+By default, `/api/analyze` asks the connected account for its available model catalog and prefers, in order:
 
-The UI accepts video and audio recordings, including M4A files. The frontend handles extraction, resampling, and chunk preparation before calling the transcription API.
+- `gpt-5.6-sol`
+- `gpt-5.6-terra`
+- `gpt-5.4-mini`
+- `gpt-5.4`
+- `gpt-5`
 
-### Language toggle
+If model discovery is unavailable, the route falls back to `gpt-5`, matching Medusa's production-supported ChatGPT OAuth default. Set `CHATGPT_MODEL` to pin a specific model when desired.
 
-The interface supports French and English generation. French is the default because the primary workflow is French-language meeting reporting.
+## DOCX templates
 
-### Structured AI minutes
+- **Anthropic** — warm editorial style.
+- **Corporate** — clean business style.
+- **Modern** — lighter presentation style.
+- **Executive** — board-report style.
 
-The analysis route produces a structured Markdown document with clear headings, expanded bullets, decisions, action items, and next-meeting planning.
-
-### Live preview
-
-Generated minutes are displayed immediately in the app, allowing users to review structure, content, and formatting before exporting.
-
-### DOCX export
-
-The DOCX exporter converts the generated Markdown into a downloadable Word document. Templates are selectable in the UI, with Anthropic as the editorial-style default.
-
-### Usage tracking
-
-After a generation completes, the token counter can be expanded to show audio duration, character count, segment count, input tokens, and output tokens. The overlay is rendered above the rest of the app with an opaque background.
-
-## Tech stack
-
-- **Frontend:** React, Vite, TypeScript, Tailwind-style utility classes.
-- **Icons:** Lucide React.
-- **DOCX generation:** `docx` and `file-saver`.
-- **Transcription API:** Groq Whisper through `/api/transcribe`.
-- **Analysis API:** MiniMax through `/api/analyze`.
-- **Deployment:** Vercel.
+The DOCX export uses the same Markdown source as the website preview.
 
 ## Project structure
 
 ```text
 .
-├── App.tsx                         # Main upload, analysis, preview, and export UI
+├── App.tsx                         # ChatGPT sign-in, upload, analysis, preview, export UI
 ├── components/
-│   ├── Input.tsx                   # Reusable form input
-│   ├── MarkdownRenderer.tsx        # Web preview renderer for generated minutes
-│   └── TokenTracker.tsx            # Usage and token counter overlay
+│   ├── MarkdownRenderer.tsx        # Web preview renderer
+│   └── TokenTracker.tsx            # Usage/token display
 ├── services/
-│   ├── docxColors.ts               # Template color palettes
-│   ├── docxService.ts              # Markdown-to-DOCX export engine
-│   └── geminiService.ts            # Audio extraction, chunking, transcription, analysis flow
+│   ├── docxService.ts              # Markdown-to-DOCX export
+│   └── geminiService.ts            # FFmpeg, transcription, OAuth analysis flow
 ├── api/
-│   ├── analyze.ts                  # MiniMax minutes generation route
-│   └── transcribe.ts               # Groq Whisper transcription route
-├── types.ts                        # Shared app types
-└── docs/images/                    # README images and diagrams
+│   ├── analyze.ts                  # ChatGPT OAuth chat-completions route
+│   └── transcribe.ts               # Groq Whisper route
+├── types.ts
+└── docs/images/
 ```
 
 ## Quick start
 
 ### Prerequisites
 
-- Node.js.
-- `MINIMAX_API_KEY` in `.env.local` or in Vercel project environment variables.
-- `GROQ_API_KEY` in `.env.local` or in Vercel project environment variables.
+- Node.js 20 or newer.
+- `GROQ_API_KEY` for speech transcription.
+- A ChatGPT account for minutes generation.
+- A browser supported by the upstream hosted Sign in with ChatGPT flow.
 
-### Run locally
+### Install and run
 
 ```bash
 npm install
 npm run dev
 ```
 
-Then open the local Vite URL shown in the terminal.
+Then open the local Vite URL and choose **Se connecter avec ChatGPT**.
 
-### Build
+### Validate
 
 ```bash
 npm run lint
 npm run build
 ```
 
-### Deploy to Vercel
-
-1. Import the repository as a Vite project.
-2. Use `npm run build` as the build command.
-3. Use `dist` as the output directory.
-4. Add `MINIMAX_API_KEY` and `GROQ_API_KEY` to the Vercel project environment variables.
-5. Deploy.
-
 ## Environment variables
 
 ```bash
-MINIMAX_API_KEY=your_minimax_key
 GROQ_API_KEY=your_groq_key
+
+# Optional: pin the ChatGPT OAuth model.
+# CHATGPT_MODEL=gpt-5.6-sol
 ```
 
-## Current status
+There is intentionally no `MINIMAX_API_KEY` or `OPENAI_API_KEY` requirement for the generation path.
 
-The application is usable as a single-user meeting-to-minutes tool with Vercel API routes for transcription and minutes generation. The main active areas of refinement are DOCX visual fidelity, template consistency, and export behavior across different DOCX viewers.
+## Deploy to Vercel
+
+1. Import this repository as a Vite project.
+2. Use `npm run build` as the build command.
+3. Use `dist` as the output directory.
+4. Add `GROQ_API_KEY` to the project environment.
+5. Optionally add `CHATGPT_MODEL` to pin the generation model.
+6. Deploy.
+
+The ChatGPT credential is supplied by each signed-in browser session rather than as a Vercel project secret.
