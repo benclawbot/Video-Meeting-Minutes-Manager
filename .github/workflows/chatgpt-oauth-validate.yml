@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feat/chatgpt-oauth-chat
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -26,6 +29,7 @@ jobs:
       - name: Build
         run: npm run build
       - name: Commit refreshed lockfile
+        if: github.event_name == 'push'
         shell: bash
         run: |
           if git diff --quiet -- package-lock.json; then
