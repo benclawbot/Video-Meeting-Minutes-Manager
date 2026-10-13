@@ -123,7 +123,14 @@ export const analyzeMeetingVideo = async (
       await ffmpeg.deleteFile(chunkPath).catch(() => false);
 
       try {
-        const res = await fetch("/api/transcribe", { method: "POST", body: wavBlob });
+        const authHeaders = await openaiAuthHeaders({
+          headers: { "Content-Type": "audio/wav" },
+        });
+        const res = await fetch("/api/transcribe", {
+          method: "POST",
+          headers: authHeaders,
+          body: wavBlob,
+        });
         if (!res.ok) {
           const err = await res.json().catch(() => ({ error: res.statusText })) as { error: string };
           throw new Error(err.error || "Erreur de transcription");
