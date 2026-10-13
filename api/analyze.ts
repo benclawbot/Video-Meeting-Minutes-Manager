@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const validation = validateAnalyzeBody(req.body);
-  if (!validation.ok) {
+  if ('error' in validation) {
     return res.status(validation.status).json({ error: validation.error });
   }
 
