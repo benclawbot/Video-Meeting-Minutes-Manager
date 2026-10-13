@@ -85,6 +85,14 @@ The DOCX export uses the same Markdown source as the website preview.
 └── docs/images/
 ```
 
+## Transcription security and privacy
+
+Meeting audio is chunked locally, then **each WAV chunk is sent to Groq Whisper** through the server endpoint `/api/transcribe`; this is an external processor separate from the ChatGPT model used for minutes generation. The derived transcript is then sent to the connected ChatGPT generation route. Obtain participant consent and verify organizational data-handling requirements before uploading confidential recordings.
+
+The transcription endpoint requires the same request-bound ChatGPT sign-in headers as the analysis endpoint, checks WAV file headers and a 10 MiB maximum upload per chunk, and does not return upstream provider response bodies. The Groq API key is **server-side only**: configure `GROQ_API_KEY` in Vercel, not `VITE_GROQ_API_KEY`, browser code or checked-in files.
+
+These are defensive checks, **not end-to-end verification of the hosted OAuth flow**. Before rollout, a real authorized account must test sign-in, token renewal/expiry, sign-out, WAV uploads, transcription, minutes generation, and error handling in the intended deployment.
+
 ## Quick start
 
 ### Prerequisites
