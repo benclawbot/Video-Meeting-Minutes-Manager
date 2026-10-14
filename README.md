@@ -4,7 +4,16 @@ MeetingMind turns recorded video or audio meetings into structured minutes with 
 
 **Live app:** https://video-meeting-minutes-manager.vercel.app/
 
-![MeetingMind application screenshot](docs/images/app-screenshot.svg)
+![MeetingMind illustrated interface preview](docs/images/app-screenshot.svg)
+
+## Original README reference images
+
+The two images attached to [README issue #4](https://github.com/benclawbot/Video-Meeting-Minutes-Manager/issues/4) are preserved below, alongside the current setup and architecture documentation. These are the original issue reference images, not automatically generated application screenshots.
+
+![README reference image 1](https://github.com/user-attachments/assets/dae0874c-cff6-48d9-8bff-5bb6c9df51a8)
+
+![README reference image 2](https://github.com/user-attachments/assets/8975258e-fbfd-4a32-8373-68bbf7cbe650)
+
 
 ## Highlights
 
