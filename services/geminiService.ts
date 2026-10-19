@@ -3,6 +3,7 @@ import coreURL from "@ffmpeg/core?url";
 import wasmURL from "@ffmpeg/core/wasm?url";
 import { openaiAuthHeaders } from "@openai-oauth/react";
 import { AnalysisResult } from "../types";
+import { getDirectUploadMime } from "./audioUploadPolicy";
 
 const TARGET_RATE = 16000;
 const CHUNK_DURATION_SEC = 90;
@@ -97,6 +98,50 @@ const prepareAudioChunks = async (
   }
 };
 
+const readMediaDurationSeconds = (file: File): Promise<number> => new Promise(resolve => {
+  const media = document.createElement(file.type.startsWith("video/") ? "video" : "audio");
+  const url = URL.createObjectURL(file);
+  let settled = false;
+  const finish = (duration: number) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timeout);
+    media.removeAttribute("src");
+    URL.revokeObjectURL(url);
+    resolve(Number.isFinite(duration) && duration > 0 ? duration : 0);
+  };
+  const timeout = setTimeout(() => finish(0), 3000);
+  media.onloadedmetadata = () => finish(media.duration);
+  media.onerror = () => finish(0);
+  media.preload = "metadata";
+  media.src = url;
+});
+
+/** Return a usable status even when Vercel responds with plain text/HTML on a crash. */
+const transcribeAudio = async (audio: Blob, mime: string): Promise<string> => {
+  try {
+    const authHeaders = await openaiAuthHeaders({
+      headers: { "Content-Type": mime },
+    });
+    const res = await fetch("/api/transcribe", {
+      method: "POST",
+      headers: authHeaders,
+      body: audio,
+    });
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null) as { error?: string } | null;
+      const reason = typeof payload?.error === "string" && payload.error.trim()
+        ? payload.error : "Service de transcription indisponible";
+      throw new Error(`${reason} (HTTP ${res.status})`);
+    }
+    const data = await res.json() as { text?: string };
+    return typeof data.text === "string" ? data.text.trim() : "";
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "inconnue";
+    throw new Error("Erreur de transcription : " + message);
+  }
+};
+
 export const analyzeMeetingVideo = async (
   mediaFile: File,
   title: string,
@@ -104,54 +149,45 @@ export const analyzeMeetingVideo = async (
   locale: "fr" | "en" = "fr",
   onStatusChange?: (status: string) => void,
 ): Promise<AnalysisResult> => {
-  if (onStatusChange) onStatusChange("EXTRACTING_AUDIO");
+  const directMime = getDirectUploadMime(mediaFile);
+  let transcript = "";
+  let audioSeconds = 0;
+  let segmentCount = 0;
 
-  const { chunks, outputDir, audioSeconds, ffmpeg } = await prepareAudioChunks(mediaFile);
+  if (directMime) {
+    // Groq accepts MP4/M4A/MP3/etc directly. Avoid loading browser FFmpeg for small recordings.
+    if (onStatusChange) onStatusChange("UPLOADING");
+    audioSeconds = await readMediaDurationSeconds(mediaFile);
+    if (onStatusChange) onStatusChange("TRANSCRIBING");
+    transcript = await transcribeAudio(mediaFile, directMime);
+    segmentCount = 1;
+  } else {
+    // Vercel limits function request bodies to 4.5 MB. Chunk larger recordings locally.
+    if (onStatusChange) onStatusChange("EXTRACTING_AUDIO");
+    const prepared = await prepareAudioChunks(mediaFile);
+    const { chunks, outputDir, ffmpeg } = prepared;
+    audioSeconds = prepared.audioSeconds;
+    segmentCount = chunks.length;
+    if (onStatusChange) onStatusChange("UPLOADING");
 
-  if (onStatusChange) onStatusChange("UPLOADING");
-
-  const transcriptionParts: string[] = [];
-  let totalCharCount = 0;
-
-  try {
-    for (let idx = 0; idx < chunks.length; idx++) {
-      if (onStatusChange) onStatusChange("TRANSCRIBING");
-
-      const chunkPath = `${outputDir}/${chunks[idx].name}`;
-      const chunkData = await ffmpeg.readFile(chunkPath);
-      const wavBlob = new Blob([chunkData], { type: "audio/wav" });
-      await ffmpeg.deleteFile(chunkPath).catch(() => false);
-
-      try {
-        const authHeaders = await openaiAuthHeaders({
-          headers: { "Content-Type": "audio/wav" },
-        });
-        const res = await fetch("/api/transcribe", {
-          method: "POST",
-          headers: authHeaders,
-          body: wavBlob,
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({ error: res.statusText })) as { error: string };
-          throw new Error(err.error || "Erreur de transcription");
-        }
-        const data = await res.json() as { text?: string };
-        if (data.text?.trim()) {
-          transcriptionParts.push(data.text.trim());
-          totalCharCount += data.text.trim().length;
-        }
-      } catch (err: any) {
-        throw new Error("Erreur de transcription : " + (err?.message || "inconnue"));
+    const transcriptionParts: string[] = [];
+    try {
+      for (const chunk of chunks) {
+        if (onStatusChange) onStatusChange("TRANSCRIBING");
+        const chunkPath = `${outputDir}/${chunk.name}`;
+        const chunkData = await ffmpeg.readFile(chunkPath);
+        await ffmpeg.deleteFile(chunkPath).catch(() => false);
+        const text = await transcribeAudio(new Blob([chunkData], { type: "audio/wav" }), "audio/wav");
+        if (text) transcriptionParts.push(text);
       }
-
-      if (idx < chunks.length - 1) await new Promise(resolve => setTimeout(resolve, 200));
+    } finally {
+      await cleanupDir(ffmpeg, outputDir);
     }
-  } finally {
-    await cleanupDir(ffmpeg, outputDir);
+    transcript = transcriptionParts.join(" ");
   }
 
-  const transcript = transcriptionParts.join(" ");
   if (!transcript.trim()) throw new Error("Aucun contenu audio detecte dans le fichier.");
+  const totalCharCount = transcript.length;
 
   if (onStatusChange) onStatusChange("PROCESSING");
 
@@ -184,7 +220,7 @@ export const analyzeMeetingVideo = async (
     usage: {
       audioSeconds,
       charCount: totalCharCount,
-      segmentCount: chunks.length,
+      segmentCount,
       inputTokens: apiUsage.input_tokens || 0,
       outputTokens: apiUsage.output_tokens || 0,
     },

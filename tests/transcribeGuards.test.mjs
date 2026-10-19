@@ -15,9 +15,17 @@ const sandbox = { exports: {} };
 vm.runInNewContext(transpile(guardsSource), sandbox);
 const guards = sandbox.exports;
 
-test("only WAV media types are accepted", () => {
-  for (const type of ["audio/wav", "audio/x-wav", "audio/wave; charset=binary"]) {
-    assert.equal(guards.validateAudioHeaders(type, undefined).ok, true);
+test("supports original Groq media types and rejects unsupported requests", () => {
+  const allowed = [
+    ["audio/wav", "wav"], ["audio/x-wav", "wav"],
+    ["audio/wave; charset=binary", "wav"], ["video/mp4", "mp4"],
+    ["audio/mp4", "m4a"], ["audio/mpeg", "mp3"],
+    ["audio/webm", "webm"], ["audio/ogg", "ogg"], ["audio/flac", "flac"],
+  ];
+  for (const [type, format] of allowed) {
+    const result = guards.validateAudioHeaders(type, undefined);
+    assert.equal(result.ok, true);
+    assert.equal(result.format, format);
   }
   for (const type of ["text/plain", undefined, "application/json", ["audio/wav"]]) {
     const result = guards.validateAudioHeaders(type, undefined);
@@ -42,6 +50,20 @@ test("WAV RIFF header is checked before handing private bytes to Groq", () => {
   assert.equal(guards.isWav(Uint8Array.from([0, 0, 0, 0, 4, 0, 0, 0, 87, 65, 86, 69])), false);
 });
 
+test("detects real audio container signatures before forwarding to Groq", () => {
+  const wav = Uint8Array.from([82, 73, 70, 70, 4, 0, 0, 0, 87, 65, 86, 69]);
+  const mp4 = Uint8Array.from([0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109]);
+  assert.equal(guards.isSupportedAudio(wav, "wav"), true);
+  assert.equal(guards.isSupportedAudio(mp4, "mp4"), true);
+  assert.equal(guards.isSupportedAudio(mp4, "m4a"), true);
+  assert.equal(guards.isSupportedAudio(Uint8Array.from([73, 68, 51]), "mp3"), true);
+  assert.equal(guards.isSupportedAudio(Uint8Array.from([26, 69, 223, 163]), "webm"), true);
+  assert.equal(guards.isSupportedAudio(Uint8Array.from([79, 103, 103, 83]), "ogg"), true);
+  assert.equal(guards.isSupportedAudio(Uint8Array.from([102, 76, 97, 67]), "flac"), true);
+  assert.equal(guards.isSupportedAudio(wav, "mp4"), false);
+  assert.equal(guards.isSupportedAudio(mp4.subarray(0, 3), "m4a"), false);
+});
+
 test("upstream error text can never be embedded in public error payload", () => {
   assert.equal(guards.publicTranscriptionError(429).status, 429);
   assert.equal(guards.publicTranscriptionError(500).status, 502);
@@ -57,7 +79,7 @@ function prepareHandler(credentials, providerFetch) {
     exports: exported,
     require(name) {
       if (name === "@openai-oauth/react/server") return { openaiCredentials: credentials };
-      if (name === "./transcribeGuards") return guards;
+      if (name === "./transcribeGuards.js") return guards;
       throw new Error("Unexpected import: " + name);
     },
     Headers, Buffer, Blob, FormData, process: { env: { GROQ_API_KEY: "test-secret" } },
@@ -90,7 +112,7 @@ test("unauthenticated requests never read audio or contact transcription provide
   assert.equal(invoked, false);
 });
 
-test("truncated or non-WAV uploads are rejected before remote requests", async () => {
+test("truncated or invalid audio uploads are rejected before remote requests", async () => {
   let invoked = false;
   const handler = prepareHandler(() => ({ accountId: "test" }),
     () => { invoked = true; throw Error("must not send"); });
@@ -124,4 +146,28 @@ test("provider failure bodies are never echoed to authenticated browser", async 
   assert.equal(calls, 1);
   assert.equal(res.statusCode, 502);
   assert.ok(!JSON.stringify(res.body).includes(secret));
+});
+
+
+test("small MP4 recording can be forwarded directly without WAV conversion", async () => {
+  let outbound;
+  const handler = prepareHandler(() => ({ accountId: "test" }), async (_url, options) => {
+    outbound = options;
+    return { ok: true, json: async () => ({ text: "Meeting notes" }) };
+  });
+  const req = {
+    method: "POST",
+    headers: { "content-type": "video/mp4" },
+    async *[Symbol.asyncIterator]() {
+      yield Buffer.from([0, 0, 0, 24, 102, 116, 121, 112, 105, 115, 111, 109]);
+    },
+  };
+  const res = mockResponse();
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.text, "Meeting notes");
+  assert.ok(outbound);
+  assert.equal(outbound.body.get("model"), "whisper-large-v3");
+  assert.equal(outbound.body.get("file").name, "recording.mp4");
+  assert.equal(outbound.body.get("file").type, "video/mp4");
 });
