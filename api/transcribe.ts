@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { openaiCredentials } from '@openai-oauth/react/server';
-import { isWav, publicTranscriptionError, validateAudioHeaders, withinAudioLimit } from './transcribeGuards';
+import { isWav, publicTranscriptionError, validateAudioHeaders, withinAudioLimit } from './transcribeGuards.js';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const GROQ_STT_MODEL = 'whisper-large-v3';
