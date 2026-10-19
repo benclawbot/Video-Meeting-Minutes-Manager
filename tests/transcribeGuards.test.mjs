@@ -57,7 +57,7 @@ function prepareHandler(credentials, providerFetch) {
     exports: exported,
     require(name) {
       if (name === "@openai-oauth/react/server") return { openaiCredentials: credentials };
-      if (name === "./transcribeGuards") return guards;
+      if (name === "./transcribeGuards.js") return guards;
       throw new Error("Unexpected import: " + name);
     },
     Headers, Buffer, Blob, FormData, process: { env: { GROQ_API_KEY: "test-secret" } },
