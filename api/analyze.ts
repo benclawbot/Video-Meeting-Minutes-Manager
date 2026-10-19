@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createOpenAIOptions } from '@openai-oauth/openai-client';
 import { openaiCredentials } from '@openai-oauth/react/server';
 import OpenAI from 'openai';
-import { publicProviderError, validateAnalyzeBody } from './analyzeGuards';
+import { publicProviderError, validateAnalyzeBody } from './analyzeGuards.js';
 
 const FALLBACK_MODEL = 'gpt-5';
 const MODEL_PREFERENCE = [
