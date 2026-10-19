@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { openaiCredentials } from '@openai-oauth/react/server';
-import { isWav, publicTranscriptionError, validateAudioHeaders, withinAudioLimit } from './transcribeGuards.js';
+import { isSupportedAudio, publicTranscriptionError, validateAudioHeaders, withinAudioLimit } from './transcribeGuards.js';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const GROQ_STT_MODEL = 'whisper-large-v3';
@@ -57,18 +57,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     for await (const part of req) {
       const chunk = Buffer.from(part);
       if (!withinAudioLimit(bytesReceived, chunk.length)) {
-        return res.status(413).json({ error: 'Segment audio trop volumineux.' });
+        return res.status(413).json({ error: 'Fichier audio trop volumineux pour Vercel.' });
       }
       bytesReceived += chunk.length;
       chunks.push(chunk);
     }
     const buffer = Buffer.concat(chunks, bytesReceived);
-    if (!isWav(buffer)) {
-      return res.status(400).json({ error: 'Fichier WAV invalide.' });
+    if (!isSupportedAudio(buffer, allowed.format)) {
+      return res.status(400).json({ error: 'Fichier audio invalide ou format incohérent.' });
     }
 
     const form = new FormData();
-    form.append('file', new Blob([buffer], { type: 'audio/wav' }), 'chunk.wav');
+    form.append('file', new Blob([buffer], { type: allowed.mime }), `recording.${allowed.format}`);
     form.append('model', GROQ_STT_MODEL);
 
     const groqRes = await fetch(`${GROQ_BASE_URL}/audio/transcriptions`, {
